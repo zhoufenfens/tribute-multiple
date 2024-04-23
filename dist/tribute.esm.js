@@ -1,27 +1,50 @@
 if (!Array.prototype.find) {
-    Array.prototype.find = function(predicate) {
-        if (this === null) {
-            throw new TypeError('Array.prototype.find called on null or undefined')
-        }
-        if (typeof predicate !== 'function') {
-            throw new TypeError('predicate must be a function')
-        }
-        var list = Object(this);
-        var length = list.length >>> 0;
-        var thisArg = arguments[1];
-        var value;
+  Object.defineProperty(Array.prototype, 'find', {
+    value: function(predicate) {
+      // 1. Let O be ? ToObject(this value).
+      if (this == null) {
+        throw TypeError('"this" is null or not defined');
+      }
 
-        for (var i = 0; i < length; i++) {
-            value = list[i];
-            if (predicate.call(thisArg, value, i, list)) {
-                return value
-            }
+      var o = Object(this);
+
+      // 2. Let len be ? ToLength(? Get(O, "length")).
+      var len = o.length >>> 0;
+
+      // 3. If IsCallable(predicate) is false, throw a TypeError exception.
+      if (typeof predicate !== 'function') {
+        throw TypeError('predicate must be a function');
+      }
+
+      // 4. If thisArg was supplied, let T be thisArg; else let T be undefined.
+      var thisArg = arguments[1];
+
+      // 5. Let k be 0.
+      var k = 0;
+
+      // 6. Repeat, while k < len
+      while (k < len) {
+        // a. Let Pk be ! ToString(k).
+        // b. Let kValue be ? Get(O, Pk).
+        // c. Let testResult be ToBoolean(? Call(predicate, T, « kValue, k, O »)).
+        // d. If testResult is true, return kValue.
+        var kValue = o[k];
+        if (predicate.call(thisArg, kValue, k, o)) {
+          return kValue;
         }
-        return undefined
-    };
+        // e. Increase k by 1.
+        k++;
+      }
+
+      // 7. Return undefined.
+      return undefined;
+    },
+    configurable: true,
+    writable: true
+  });
 }
 
-if (window && typeof window.CustomEvent !== "function") {
+if (typeof window !== 'undefined' && typeof window.CustomEvent !== "function") {
   function CustomEvent$1(event, params) {
     params = params || {
       bubbles: false,
@@ -84,15 +107,15 @@ class TributeEvents {
     element.boundKeyup = this.keyup.bind(element, this);
     element.boundInput = this.input.bind(element, this);
 
-    element.addEventListener("keydown", element.boundKeydown, false);
-    element.addEventListener("keyup", element.boundKeyup, false);
-    element.addEventListener("input", element.boundInput, false);
+    element.addEventListener("keydown", element.boundKeydown, true);
+    element.addEventListener("keyup", element.boundKeyup, true);
+    element.addEventListener("input", element.boundInput, true);
   }
 
   unbind(element) {
-    element.removeEventListener("keydown", element.boundKeydown, false);
-    element.removeEventListener("keyup", element.boundKeyup, false);
-    element.removeEventListener("input", element.boundInput, false);
+    element.removeEventListener("keydown", element.boundKeydown, true);
+    element.removeEventListener("keyup", element.boundKeyup, true);
+    element.removeEventListener("input", element.boundInput, true);
 
     delete element.boundKeydown;
     delete element.boundKeyup;
@@ -123,6 +146,40 @@ class TributeEvents {
 
   click(instance, event) {
     let tribute = instance.tribute;
+    
+    const isBtn = event.target.getAttribute('data-tribute-btn');
+    if (isBtn) {
+      // 点击的是(取消或者确定)按钮
+      const isConfirmBtn = isBtn === 'confirm';
+      const isCancelBtn = isBtn === 'cancel';
+      if (isCancelBtn) {
+        tribute.hideMenu();
+      }
+      if (isConfirmBtn) {
+        const suggestDomList = tribute.menu.querySelector('ul')?.children || [];
+        if (suggestDomList.length === 0) {
+          return;
+        }
+        const checkedIndexs = [];
+        // htmlCollection使用foreach方法
+        [].forEach.call(suggestDomList, item => {
+          if (item.getAttribute('data-tribute-selected') === '1') {
+            checkedIndexs.push(item.getAttribute('data-index'));
+          }
+        });
+        console.log('选中的多选项索引数组', checkedIndexs);
+        if (checkedIndexs.length === 0) {
+          return tribute.hideMenu();
+        }
+        // checkedIndexs.forEach(index => {
+        //   tribute.selectItemAtIndex(index, event);
+        // });
+        tribute.selectItemsAtIndexList(checkedIndexs, event);
+        tribute.hideMenu();
+        
+      }
+      return;
+    }
     if (tribute.menu && tribute.menu.contains(event.target)) {
       let li = event.target;
       event.preventDefault();
@@ -133,8 +190,17 @@ class TributeEvents {
           throw new Error("cannot find the <li> container for the click");
         }
       }
-      tribute.selectItemAtIndex(li.getAttribute("data-index"), event);
-      tribute.hideMenu();
+      
+      if (tribute.multipleSelectMode) {
+        // 多选不关闭菜单
+        let checked = li.getAttribute('data-tribute-selected') === '1';
+        let index = li.getAttribute("data-index");
+        li.setAttribute('data-tribute-selected', checked ? '0' : '1');
+      } else {
+        // 单选沿用老逻辑
+        tribute.selectItemAtIndex(li.getAttribute("data-index"), event);
+        tribute.hideMenu();
+      }
 
       // TODO: should fire with externalTrigger and target is outside of menu
     } else if (tribute.current.element && !tribute.current.externalTrigger) {
@@ -149,7 +215,7 @@ class TributeEvents {
     }
     instance.updateSelection(this);
 
-    if (event.keyCode === 27) return;
+    if (!event.keyCode || event.keyCode === 27) return;
 
     if (!instance.tribute.allowSpaces && instance.tribute.hasTrailingSpace) {
       instance.tribute.hasTrailingSpace = false;
@@ -175,6 +241,13 @@ class TributeEvents {
         }
       }
     }
+    
+    // 只输入trigger字符时，切换到multipleSelectMode，否则关闭multipleSelectMode
+    if (instance.tribute.current.mentionText.length === 0) {
+      instance.tribute.multipleSelectMode = true;
+    } else {
+      instance.tribute.multipleSelectMode = false;
+    }
 
     if (
       instance.tribute.current.mentionText.length <
@@ -182,6 +255,7 @@ class TributeEvents {
     ) {
       return;
     }
+    
 
     if (
       ((instance.tribute.current.trigger ||
@@ -599,7 +673,7 @@ class TributeRange {
                     : ' ';
                 text += textSuffix;
                 let startPos = info.mentionPosition;
-                let endPos = info.mentionPosition + info.mentionText.length + textSuffix.length;
+                let endPos = info.mentionPosition + info.mentionText.length + (textSuffix === '' ? 1 : textSuffix.length);
                 if (!this.tribute.autocompleteMode) {
                     endPos += info.mentionTriggerChar.length - 1;
                 }
@@ -734,15 +808,14 @@ class TributeRange {
     }
 
     getLastWordInText(text) {
-        text = text.replace(/\u00A0/g, ' '); // https://stackoverflow.com/questions/29850407/how-do-i-replace-unicode-character-u00a0-with-a-space-in-javascript
         var wordsArray;
         if (this.tribute.autocompleteSeparator) {
             wordsArray = text.split(this.tribute.autocompleteSeparator);
         } else {
             wordsArray = text.split(/\s+/);
         }
-        var worldsCount = wordsArray.length - 1;
-        return wordsArray[worldsCount].trim();
+        var wordsCount = wordsArray.length - 1;
+        return wordsArray[wordsCount];
     }
 
     getTriggerInfo(menuAlreadyActive, hasTrailingSpace, requireLeadingSpace, allowSpaces, isAutocomplete) {
@@ -795,7 +868,7 @@ class TributeRange {
                 (
                     mostRecentTriggerCharPos === 0 ||
                     !requireLeadingSpace ||
-                    /[\xA0\s]/g.test(
+                    /\s/.test(
                         effectiveRange.substring(
                             mostRecentTriggerCharPos - 1,
                             mostRecentTriggerCharPos)
@@ -1263,7 +1336,8 @@ class Tribute {
     spaceSelectsMatch = false,
     searchOpts = {},
     menuItemLimit = null,
-    menuShowMinLength = 0
+    menuShowMinLength = 0,
+    multipleSelectMode = false, // 多选模式
   }) {
     this.autocompleteMode = autocompleteMode;
     this.autocompleteSeparator = autocompleteSeparator;
@@ -1277,6 +1351,8 @@ class Tribute {
     this.positionMenu = positionMenu;
     this.hasTrailingSpace = false;
     this.spaceSelectsMatch = spaceSelectsMatch;
+    
+    this.multipleSelectMode = multipleSelectMode;
 
     if (this.autocompleteMode) {
       trigger = "";
@@ -1488,10 +1564,11 @@ class Tribute {
 
   ensureEditable(element) {
     if (Tribute.inputTypes().indexOf(element.nodeName) === -1) {
-      if (element.contentEditable) {
-        element.contentEditable = true;
+      if (!element.contentEditable) {
+        throw new Error("[Tribute] Cannot bind to " + element.nodeName + ", not contentEditable");
       } else {
-        throw new Error("[Tribute] Cannot bind to " + element.nodeName);
+        // 保证可编辑态，因为contentEditable属性可能是inherited
+        element.contentEditable = true;
       }
     }
   }
@@ -1501,9 +1578,31 @@ class Tribute {
       ul = this.range.getDocument().createElement("ul");
     wrapper.className = containerClass;
     wrapper.appendChild(ul);
+    
+    if (this.multipleSelectMode) {
+      wrapper.classList.add('multiple-select-mode');
+    }
+    
+    let btnWrapper = this.range.getDocument().createElement("div");
+    let confirmBtn = document.createElement("input");
+    btnWrapper.classList.add('tribute-btn-wrapper');
+    confirmBtn.type = "button";
+    confirmBtn.className = 'm-tribute-btn';
+    confirmBtn.setAttribute('data-tribute-btn', 'confirm');
+    confirmBtn.value = "确定";
+    btnWrapper.appendChild(confirmBtn);
+    let cancelBtn = document.createElement("input");
+    cancelBtn.type = "button";
+    cancelBtn.className = 'm-tribute-btn';
+    cancelBtn.setAttribute('data-tribute-btn', 'cancel');
+    cancelBtn.value = "取消"; 
+    btnWrapper.appendChild(cancelBtn);
 
     if (this.menuContainer) {
       return this.menuContainer.appendChild(wrapper);
+    }
+    if (this.multipleSelectMode) {
+      wrapper.appendChild(btnWrapper);
     }
 
     return this.range.getDocument().body.appendChild(wrapper);
@@ -1525,7 +1624,15 @@ class Tribute {
       this.menu = this.createMenu(this.current.collection.containerClass);
       element.tributeMenu = this.menu;
       this.menuEvents.bind(this.menu);
+    } else {
+      // 根据是否多选模式，添加或者移除多选模式的class，控制下面按钮的显示
+      if (this.multipleSelectMode) {
+        this.menu.classList.add('multiple-select-mode');
+      } else {
+        this.menu.classList.remove('multiple-select-mode');
+      }
     }
+    
 
     this.isActive = true;
     this.menuSelected = 0;
@@ -1712,6 +1819,17 @@ class Tribute {
     let item = this.current.filteredItems[index];
     let content = this.current.collection.selectTemplate(item);
     if (content !== null) this.replaceText(content, originalEvent, item);
+  }
+  
+  selectItemsAtIndexList(indexList, originalEvent) {
+    let totalContent = '';
+    indexList.forEach(index => {
+      index = parseInt(index);
+      let item = this.current.filteredItems[index];
+      let content = this.current.collection.selectTemplate(item);
+      if (content !== null) totalContent += content;
+    });
+    if (totalContent !== '') this.replaceText(totalContent, originalEvent);
   }
 
   replaceText(content, originalEvent, item) {

@@ -29,7 +29,8 @@ class Tribute {
     spaceSelectsMatch = false,
     searchOpts = {},
     menuItemLimit = null,
-    menuShowMinLength = 0
+    menuShowMinLength = 0,
+    multipleSelectMode = false, // 多选模式
   }) {
     this.autocompleteMode = autocompleteMode;
     this.autocompleteSeparator = autocompleteSeparator;
@@ -43,6 +44,8 @@ class Tribute {
     this.positionMenu = positionMenu;
     this.hasTrailingSpace = false;
     this.spaceSelectsMatch = spaceSelectsMatch;
+    
+    this.multipleSelectMode = multipleSelectMode;
 
     if (this.autocompleteMode) {
       trigger = "";
@@ -256,6 +259,9 @@ class Tribute {
     if (Tribute.inputTypes().indexOf(element.nodeName) === -1) {
       if (!element.contentEditable) {
         throw new Error("[Tribute] Cannot bind to " + element.nodeName + ", not contentEditable");
+      } else {
+        // 保证可编辑态，因为contentEditable属性可能是inherited
+        element.contentEditable = true;
       }
     }
   }
@@ -265,9 +271,31 @@ class Tribute {
       ul = this.range.getDocument().createElement("ul");
     wrapper.className = containerClass;
     wrapper.appendChild(ul);
+    
+    if (this.multipleSelectMode) {
+      wrapper.classList.add('multiple-select-mode');
+    }
+    
+    let btnWrapper = this.range.getDocument().createElement("div");
+    let confirmBtn = document.createElement("input");
+    btnWrapper.classList.add('tribute-btn-wrapper');
+    confirmBtn.type = "button";
+    confirmBtn.className = 'm-tribute-btn';
+    confirmBtn.setAttribute('data-tribute-btn', 'confirm');
+    confirmBtn.value = "确定";
+    btnWrapper.appendChild(confirmBtn);
+    let cancelBtn = document.createElement("input");
+    cancelBtn.type = "button";
+    cancelBtn.className = 'm-tribute-btn';
+    cancelBtn.setAttribute('data-tribute-btn', 'cancel');
+    cancelBtn.value = "取消"; 
+    btnWrapper.appendChild(cancelBtn);
 
     if (this.menuContainer) {
       return this.menuContainer.appendChild(wrapper);
+    }
+    if (this.multipleSelectMode) {
+      wrapper.appendChild(btnWrapper);
     }
 
     return this.range.getDocument().body.appendChild(wrapper);
@@ -289,7 +317,15 @@ class Tribute {
       this.menu = this.createMenu(this.current.collection.containerClass);
       element.tributeMenu = this.menu;
       this.menuEvents.bind(this.menu);
+    } else {
+      // 根据是否多选模式，添加或者移除多选模式的class，控制下面按钮的显示
+      if (this.multipleSelectMode) {
+        this.menu.classList.add('multiple-select-mode');
+      } else {
+        this.menu.classList.remove('multiple-select-mode');
+      }
     }
+    
 
     this.isActive = true;
     this.menuSelected = 0;
@@ -476,6 +512,17 @@ class Tribute {
     let item = this.current.filteredItems[index];
     let content = this.current.collection.selectTemplate(item);
     if (content !== null) this.replaceText(content, originalEvent, item);
+  }
+  
+  selectItemsAtIndexList(indexList, originalEvent) {
+    let totalContent = '';
+    indexList.forEach(index => {
+      index = parseInt(index);
+      let item = this.current.filteredItems[index];
+      let content = this.current.collection.selectTemplate(item);
+      if (content !== null) totalContent += content;
+    });
+    if (totalContent !== '') this.replaceText(totalContent, originalEvent);
   }
 
   replaceText(content, originalEvent, item) {

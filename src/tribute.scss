@@ -35,4 +35,33 @@
   .menu-highlighted {
     font-weight: bold;
   }
+  /**
+   * Multiple Select Mode
+  */
+  
+  .tribute-btn-wrapper {
+    display: none;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 5px;
+  }
+  
+  &.multiple-select-mode {
+    .tribute-btn-wrapper {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 5px;
+      font-size: 12px;
+    }
+    
+    .tribute-btn-wrapper .m-tribute-btn {
+      margin-left: 5px;
+      padding: 5px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background: #fff;
+      cursor: pointer;
+    }
+  }
 }

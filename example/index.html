@@ -38,6 +38,12 @@
       .float-right {
         float: right;
       }
+      .tribute-container .m-check {
+        display: none;
+      }
+      .tribute-container.multiple-select-mode .m-check {
+        display: inline-block;
+      }
     </style>
   </head>
   <body>
@@ -189,16 +195,22 @@
               '<span contenteditable="false"><a href="http://zurb.com" target="_blank" title="' +
               item.original.email +
               '">' +
-              item.original.value +
+              '@' + item.original.value +
               "</a></span>"
             );
           }
-
           return "@" + item.original.value;
+        },
+        searchOpts: {
+          pre: "<span class='highlight' style='color:red;'>",
+          post: "</span>",
+          skip: false
+        },
+        menuItemTemplate: function(item) {
+          return `<label><input type="checkbox" class="m-check" /> ${item.string}</label>`;
         },
         requireLeadingSpace: false
       });
-
       tribute.attach(document.getElementById("test"));
       tribute.attach(document.getElementById("testInput"));
       tribute.attach(document.getElementById("testarea"));

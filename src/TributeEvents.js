@@ -81,6 +81,40 @@ class TributeEvents {
 
   click(instance, event) {
     let tribute = instance.tribute;
+    
+    const isBtn = event.target.getAttribute('data-tribute-btn')
+    if (isBtn) {
+      // 点击的是(取消或者确定)按钮
+      const isConfirmBtn = isBtn === 'confirm';
+      const isCancelBtn = isBtn === 'cancel';
+      if (isCancelBtn) {
+        tribute.hideMenu();
+      }
+      if (isConfirmBtn) {
+        const suggestDomList = tribute.menu.querySelector('ul')?.children || [];
+        if (suggestDomList.length === 0) {
+          return;
+        }
+        const checkedIndexs = [];
+        // htmlCollection使用foreach方法
+        [].forEach.call(suggestDomList, item => {
+          if (item.getAttribute('data-tribute-selected') === '1') {
+            checkedIndexs.push(item.getAttribute('data-index'));
+          }
+        })
+        console.log('选中的多选项索引数组', checkedIndexs);
+        if (checkedIndexs.length === 0) {
+          return tribute.hideMenu();
+        }
+        // checkedIndexs.forEach(index => {
+        //   tribute.selectItemAtIndex(index, event);
+        // });
+        tribute.selectItemsAtIndexList(checkedIndexs, event);
+        tribute.hideMenu();
+        
+      }
+      return;
+    }
     if (tribute.menu && tribute.menu.contains(event.target)) {
       let li = event.target;
       event.preventDefault();
@@ -91,8 +125,17 @@ class TributeEvents {
           throw new Error("cannot find the <li> container for the click");
         }
       }
-      tribute.selectItemAtIndex(li.getAttribute("data-index"), event);
-      tribute.hideMenu();
+      
+      if (tribute.multipleSelectMode) {
+        // 多选不关闭菜单
+        let checked = li.getAttribute('data-tribute-selected') === '1';
+        let index = li.getAttribute("data-index");
+        li.setAttribute('data-tribute-selected', checked ? '0' : '1');
+      } else {
+        // 单选沿用老逻辑
+        tribute.selectItemAtIndex(li.getAttribute("data-index"), event);
+        tribute.hideMenu();
+      }
 
       // TODO: should fire with externalTrigger and target is outside of menu
     } else if (tribute.current.element && !tribute.current.externalTrigger) {
@@ -133,6 +176,13 @@ class TributeEvents {
         }
       }
     }
+    
+    // 只输入trigger字符时，切换到multipleSelectMode，否则关闭multipleSelectMode
+    if (instance.tribute.current.mentionText.length === 0) {
+      instance.tribute.multipleSelectMode = true;
+    } else {
+      instance.tribute.multipleSelectMode = false;
+    }
 
     if (
       instance.tribute.current.mentionText.length <
@@ -140,6 +190,7 @@ class TributeEvents {
     ) {
       return;
     }
+    
 
     if (
       ((instance.tribute.current.trigger ||
