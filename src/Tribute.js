@@ -1,240 +1,105 @@
-import "./utils";
-import TributeEvents from "./TributeEvents";
-import TributeMenuEvents from "./TributeMenuEvents";
-import TributeRange from "./TributeRange";
-import TributeSearch from "./TributeSearch";
+// src/Tribute.js
+import "./utils"; // Polyfills
+import TributeConfig from "./TributeConfig";
+import TributeMenu from "./TributeMenu";
+import TributeEvents from "./TributeEvents"; // Handles input element events
+import TributeMenuEvents from "./TributeMenuEvents"; // Handles menu element events
+import TributeRange from "./TributeRange"; // Handles selection, cursor, and text manipulation
+import TributeSearch from "./TributeSearch"; // Handles search and filtering
 
+/**
+ * @class Tribute
+ * @classdesc 主 Tribute 类，协调所有功能。
+ */
 class Tribute {
-  constructor({
-    values = null,
-    loadingItemTemplate = null,
-    iframe = null,
-    selectClass = "highlight",
-    containerClass = "tribute-container",
-    itemClass = "",
-    trigger = "@",
-    autocompleteMode = false,
-    autocompleteSeparator = null,
-    selectTemplate = null,
-    menuItemTemplate = null,
-    lookup = "key",
-    fillAttr = "value",
-    collection = null,
-    menuContainer = null,
-    noMatchTemplate = null,
-    requireLeadingSpace = true,
-    allowSpaces = false,
-    replaceTextSuffix = null,
-    positionMenu = true,
-    spaceSelectsMatch = false,
-    searchOpts = {},
-    menuItemLimit = null,
-    menuShowMinLength = 0
-  }) {
-    this.autocompleteMode = autocompleteMode;
-    this.autocompleteSeparator = autocompleteSeparator;
-    this.menuSelected = 0;
-    this.current = {};
-    this.inputEvent = false;
-    this.isActive = false;
-    this.menuContainer = menuContainer;
-    this.allowSpaces = allowSpaces;
-    this.replaceTextSuffix = replaceTextSuffix;
-    this.positionMenu = positionMenu;
-    this.hasTrailingSpace = false;
-    this.spaceSelectsMatch = spaceSelectsMatch;
+  /**
+   * 构造函数
+   * @param {object} options - Tribute 的配置选项。
+   */
+  constructor(options) {
+    // 初始化配置
+    this.config = new TributeConfig(options);
+    this.config.setTributeInstance(this); // 将此Tribute实例传递给配置对象
 
-    if (this.autocompleteMode) {
-      trigger = "";
-      allowSpaces = false;
-    }
+    // 初始化状态
+    this.menuSelected = 0; // 当前选中的菜单项索引
+    this.current = {}; // 当前活动状态（例如，元素、提及文本）
+    this.inputEvent = false; // 标记是否由输入事件触发
+    this._isActive = false; // 内部状态，标记菜单是否激活
+    this.hasTrailingSpace = false; // 标记提及文本后是否有尾随空格
+    this.currentMentionTextSnapshot = ""; // 用于比较提及文本是否变化的快照
 
-    if (values) {
-      this.collection = [
-        {
-          // symbol that starts the lookup
-          trigger: trigger,
+    // 初始化模块实例
+    // 这些模块将接收此 Tribute 实例的引用，以便它们可以回调或访问其状态/方法
+    this.range = new TributeRange(this);
+    this.events = new TributeEvents(this); // 绑定到输入元素的事件处理器
+    this.menuEvents = new TributeMenuEvents(this); // 绑定到菜单元素的事件处理器
+    this.search = new TributeSearch(this);
+    this.menu = new TributeMenu(this); // 菜单管理器实例
 
-          // is it wrapped in an iframe
-          iframe: iframe,
-
-          // class applied to selected item
-          selectClass: selectClass,
-
-          // class applied to the Container
-          containerClass: containerClass,
-
-          // class applied to each item
-          itemClass: itemClass,
-
-          // function called on select that retuns the content to insert
-          selectTemplate: (
-            selectTemplate || Tribute.defaultSelectTemplate
-          ).bind(this),
-
-          // function called that returns content for an item
-          menuItemTemplate: (
-            menuItemTemplate || Tribute.defaultMenuItemTemplate
-          ).bind(this),
-
-          // function called when menu is empty, disables hiding of menu.
-          noMatchTemplate: (t => {
-            if (typeof t === "string") {
-              if (t.trim() === "") return null;
-              return t;
-            }
-            if (typeof t === "function") {
-              return t.bind(this);
-            }
-
-            return (
-              noMatchTemplate ||
-              function() {
-                return "<li>No Match Found!</li>";
-              }.bind(this)
-            );
-          })(noMatchTemplate),
-
-          // column to search against in the object
-          lookup: lookup,
-
-          // column that contains the content to insert by default
-          fillAttr: fillAttr,
-
-          // array of objects or a function returning an array of objects
-          values: values,
-
-          // useful for when values is an async function
-          loadingItemTemplate: loadingItemTemplate,
-
-          requireLeadingSpace: requireLeadingSpace,
-
-          searchOpts: searchOpts,
-
-          menuItemLimit: menuItemLimit,
-
-          menuShowMinLength: menuShowMinLength
-        }
-      ];
-    } else if (collection) {
-      if (this.autocompleteMode)
-        console.warn(
-          "Tribute in autocomplete mode does not work for collections"
-        );
-      this.collection = collection.map(item => {
-        return {
-          trigger: item.trigger || trigger,
-          iframe: item.iframe || iframe,
-          selectClass: item.selectClass || selectClass,
-          containerClass: item.containerClass || containerClass,
-          itemClass: item.itemClass || itemClass,
-          selectTemplate: (
-            item.selectTemplate || Tribute.defaultSelectTemplate
-          ).bind(this),
-          menuItemTemplate: (
-            item.menuItemTemplate || Tribute.defaultMenuItemTemplate
-          ).bind(this),
-          // function called when menu is empty, disables hiding of menu.
-          noMatchTemplate: (t => {
-            if (typeof t === "string") {
-              if (t.trim() === "") return null;
-              return t;
-            }
-            if (typeof t === "function") {
-              return t.bind(this);
-            }
-
-            return (
-              noMatchTemplate ||
-              function() {
-                return "<li>No Match Found!</li>";
-              }.bind(this)
-            );
-          })(noMatchTemplate),
-          lookup: item.lookup || lookup,
-          fillAttr: item.fillAttr || fillAttr,
-          values: item.values,
-          loadingItemTemplate: item.loadingItemTemplate,
-          requireLeadingSpace: item.requireLeadingSpace,
-          searchOpts: item.searchOpts || searchOpts,
-          menuItemLimit: item.menuItemLimit || menuItemLimit,
-          menuShowMinLength: item.menuShowMinLength || menuShowMinLength
-        };
-      });
-    } else {
-      throw new Error("[Tribute] No collection specified.");
-    }
-
-    new TributeRange(this);
-    new TributeEvents(this);
-    new TributeMenuEvents(this);
-    new TributeSearch(this);
+    // 从配置中提取一些常用属性到顶层，方便访问
+    this.autocompleteMode = this.config.autocompleteMode;
+    this.autocompleteSeparator = this.config.autocompleteSeparator;
+    this.allowSpaces = this.config.allowSpaces;
+    this.replaceTextSuffix = this.config.replaceTextSuffix;
+    this.positionMenu = this.config.positionMenu;
+    this.spaceSelectsMatch = this.config.spaceSelectsMatch;
+    this.collection = this.config.collection; // 主集合也由 config 管理
+    this.menuContainer = this.config.menuContainer; // 菜单容器也由 config 管理
   }
 
+  /**
+   * 获取菜单是否激活的状态。
+   * @returns {boolean}
+   */
   get isActive() {
     return this._isActive;
   }
 
+  /**
+   * 设置菜单的激活状态，并在状态改变时分发事件。
+   * @param {boolean} val - 新的激活状态。
+   */
   set isActive(val) {
-    if (this._isActive != val) {
+    if (this._isActive !== val) {
       this._isActive = val;
-      if (this.current.element) {
-        let noMatchEvent = new CustomEvent(`tribute-active-${val}`);
-        this.current.element.dispatchEvent(noMatchEvent);
+      if (this.current && this.current.element) {
+        const activeEvent = new CustomEvent(`tribute-active-${val}`);
+        this.current.element.dispatchEvent(activeEvent);
       }
     }
   }
 
-  static defaultSelectTemplate(item) {
-    if (typeof item === "undefined")
-      return `${this.current.collection.trigger}${this.current.mentionText}`;
-    if (this.range.isContentEditable(this.current.element)) {
-      return (
-        '<span class="tribute-mention">' +
-        (this.current.collection.trigger +
-          item.original[this.current.collection.fillAttr]) +
-        "</span>"
-      );
-    }
-
-    return (
-      this.current.collection.trigger +
-      item.original[this.current.collection.fillAttr]
-    );
-  }
-
-  static defaultMenuItemTemplate(matchItem) {
-    return matchItem.string;
-  }
-
-  static inputTypes() {
-    return ["TEXTAREA", "INPUT"];
-  }
-
+  /**
+   * 获取所有配置的触发字符。
+   * @returns {string[]} - 触发字符数组。
+   */
   triggers() {
-    return this.collection.map(config => {
-      return config.trigger;
-    });
+    return this.config.triggers();
   }
 
+  /**
+   * 将 Tribute 附加到一个或多个 DOM 元素。
+   * @param {Element|NodeList|Array|jQuery} el - 要附加到的 DOM 元素。
+   */
   attach(el) {
     if (!el) {
       throw new Error("[Tribute] Must pass in a DOM node or NodeList.");
     }
 
-    // Check if it is a jQuery collection
+    // 处理 jQuery 集合
     if (typeof jQuery !== "undefined" && el instanceof jQuery) {
       el = el.get();
     }
 
-    // Is el an Array/Array-like object?
+    // 处理数组或类数组对象
     if (
       el.constructor === NodeList ||
       el.constructor === HTMLCollection ||
       el.constructor === Array
     ) {
-      let length = el.length;
-      for (var i = 0; i < length; ++i) {
+      const length = el.length;
+      for (let i = 0; i < length; ++i) {
         this._attach(el[i]);
       }
     } else {
@@ -242,246 +107,158 @@ class Tribute {
     }
   }
 
+  /**
+   * 将 Tribute 附加到单个 DOM 元素。
+   * @param {Element} el - 要附加到的 DOM 元素。
+   * @private
+   */
   _attach(el) {
     if (el.hasAttribute("data-tribute")) {
-      console.warn("Tribute was already bound to " + el.nodeName);
+      console.warn(`Tribute was already bound to ${el.nodeName}`);
+      return;
     }
 
     this.ensureEditable(el);
-    this.events.bind(el);
+    this.events.bind(el); // 使用 TributeEvents 模块绑定事件
     el.setAttribute("data-tribute", true);
+
+    // 如果元素有关联的菜单（例如之前创建的），确保其事件也被绑定
+    if (el.tributeMenu && this.menuEvents) {
+        this.menuEvents.bind(el.tributeMenu);
+    }
   }
 
+  /**
+   * 确保元素是可编辑的（输入框、文本区域或 contentEditable）。
+   * @param {Element} element - 要检查的元素。
+   */
   ensureEditable(element) {
-    if (Tribute.inputTypes().indexOf(element.nodeName) === -1) {
+    if (TributeConfig.inputTypes().indexOf(element.nodeName) === -1) {
       if (!element.contentEditable) {
-        throw new Error("[Tribute] Cannot bind to " + element.nodeName + ", not contentEditable");
+        throw new Error(
+          `[Tribute] Cannot bind to ${element.nodeName}, not contentEditable`
+        );
       }
     }
   }
 
-  createMenu(containerClass) {
-    let wrapper = this.range.getDocument().createElement("div"),
-      ul = this.range.getDocument().createElement("ul");
-    wrapper.className = containerClass;
-    wrapper.appendChild(ul);
-
-    if (this.menuContainer) {
-      return this.menuContainer.appendChild(wrapper);
-    }
-
-    return this.range.getDocument().body.appendChild(wrapper);
-  }
-
+  /**
+   * 为指定元素显示提及菜单。
+   * 此方法现在委托给 TributeMenu 实例。
+   * @param {HTMLElement} element - 触发提及的输入元素。
+   * @param {boolean} scrollTo - 是否滚动到菜单位置。
+   */
   showMenuFor(element, scrollTo) {
-    // Only proceed if menu isn't already shown for the current element & mentionText
-    if (
-      this.isActive &&
-      this.current.element === element &&
-      this.current.mentionText === this.currentMentionTextSnapshot
-    ) {
-      return;
-    }
-    this.currentMentionTextSnapshot = this.current.mentionText;
+    this.menu.showMenuFor(element, scrollTo);
+  }
 
-    // create the menu if it doesn't exist.
-    if (!this.menu) {
-      this.menu = this.createMenu(this.current.collection.containerClass);
-      element.tributeMenu = this.menu;
-      this.menuEvents.bind(this.menu);
-    }
+   /**
+   * 设置当前活动的列表项（高亮）。
+   * @param {number|string} index - 列表项的索引。
+   */
+  setActiveLi(index) {
+    const lis = this.menu.menu.querySelectorAll("li"); // menu 实例现在持有 DOM 引用
+    const length = lis.length >>> 0;
 
-    this.isActive = true;
-    this.menuSelected = 0;
+    if (index !== undefined) this.menuSelected = parseInt(index);
 
-    if (!this.current.mentionText) {
-      this.current.mentionText = "";
-    }
+    for (let i = 0; i < length; i++) {
+      const li = lis[i];
+      if (i === this.menuSelected) {
+        li.classList.add(this.current.collection.selectClass);
 
-    const processValues = values => {
-      // Tribute may not be active any more by the time the value callback returns
-      if (!this.isActive) {
-        return;
-      }
+        // 滚动到视图逻辑
+        const liClientRect = li.getBoundingClientRect();
+        const menuClientRect = this.menu.menu.getBoundingClientRect();
 
-      let items = this.search.filter(this.current.mentionText, values, {
-        pre: this.current.collection.searchOpts.pre || "<span>",
-        post: this.current.collection.searchOpts.post || "</span>",
-        skip: this.current.collection.searchOpts.skip,
-        extract: el => {
-          if (typeof this.current.collection.lookup === "string") {
-            return el[this.current.collection.lookup];
-          } else if (typeof this.current.collection.lookup === "function") {
-            return this.current.collection.lookup(el, this.current.mentionText);
-          } else {
-            throw new Error(
-              "Invalid lookup attribute, lookup must be string or function."
-            );
-          }
+        if (liClientRect.bottom > menuClientRect.bottom) {
+          const scrollDistance = liClientRect.bottom - menuClientRect.bottom;
+          this.menu.menu.scrollTop += scrollDistance;
+        } else if (liClientRect.top < menuClientRect.top) {
+          const scrollDistance = menuClientRect.top - liClientRect.top;
+          this.menu.menu.scrollTop -= scrollDistance;
         }
-      });
-
-      if (this.current.collection.menuItemLimit) {
-        items = items.slice(0, this.current.collection.menuItemLimit);
+      } else {
+        li.classList.remove(this.current.collection.selectClass);
       }
-
-      this.current.filteredItems = items;
-
-      let ul = this.menu.querySelector("ul");
-
-      if (!items.length) {
-        let noMatchEvent = new CustomEvent("tribute-no-match", {
-          detail: this.menu
-        });
-        this.current.element.dispatchEvent(noMatchEvent);
-        if (
-          (typeof this.current.collection.noMatchTemplate === "function" &&
-            !this.current.collection.noMatchTemplate()) ||
-          !this.current.collection.noMatchTemplate
-        ) {
-          this.hideMenu();
-        } else {
-          typeof this.current.collection.noMatchTemplate === "function"
-            ? (ul.innerHTML = this.current.collection.noMatchTemplate())
-            : (ul.innerHTML = this.current.collection.noMatchTemplate);
-            this.range.positionMenuAtCaret(scrollTo);
-        }
-
-        return;
-      }
-
-      ul.innerHTML = "";
-      let fragment = this.range.getDocument().createDocumentFragment();
-
-      items.forEach((item, index) => {
-        let li = this.range.getDocument().createElement("li");
-        li.setAttribute("data-index", index);
-        li.className = this.current.collection.itemClass;
-        li.addEventListener("mousemove", e => {
-          let [li, index] = this._findLiTarget(e.target);
-          if (e.movementY !== 0) {
-            this.events.setActiveLi(index);
-          }
-        });
-        if (this.menuSelected === index) {
-          li.classList.add(this.current.collection.selectClass);
-        }
-        li.innerHTML = this.current.collection.menuItemTemplate(item);
-        fragment.appendChild(li);
-      });
-      ul.appendChild(fragment);
-
-      this.range.positionMenuAtCaret(scrollTo);
-    };
-
-    if (typeof this.current.collection.values === "function") {
-      if (this.current.collection.loadingItemTemplate) {
-        this.menu.querySelector("ul").innerHTML = this.current.collection.loadingItemTemplate;
-        this.range.positionMenuAtCaret(scrollTo);
-      }
-
-      this.current.collection.values(this.current.mentionText, processValues);
-    } else {
-      processValues(this.current.collection.values);
     }
   }
 
+
+  /**
+   * 查找事件目标所在的 <li> 元素及其索引。
+   * 此方法现在委托给 TributeMenu 实例。
+   * @param {HTMLElement} el - 事件目标元素。
+   * @returns {Array}
+   * @private
+   */
   _findLiTarget(el) {
-    if (!el) return [];
-    const index = el.getAttribute("data-index");
-    return !index ? this._findLiTarget(el.parentNode) : [el, index];
+    return this.menu._findLiTarget(el);
   }
 
-  showMenuForCollection(element, collectionIndex) {
-    if (element !== document.activeElement) {
-      this.placeCaretAtEnd(element);
+  /**
+   * 为指定的集合显示菜单。
+   * @param {HTMLElement} element - 目标元素。
+   * @param {number} [collectionIndex=0] - 要使用的集合的索引。
+   */
+  showMenuForCollection(element, collectionIndex = 0) {
+    if (element !== this.range.getDocument().activeElement) { // 使用 range 获取 document
+      this.range.placeCaretAtEnd(element);
     }
 
-    this.current.collection = this.collection[collectionIndex || 0];
+    this.current.collection = this.collection[collectionIndex];
     this.current.externalTrigger = true;
     this.current.element = element;
 
-    if (element.isContentEditable)
-      this.insertTextAtCursor(this.current.collection.trigger);
-    else this.insertAtCaret(element, this.current.collection.trigger);
-
-    this.showMenuFor(element);
-  }
-
-  // TODO: make sure this works for inputs/textareas
-  placeCaretAtEnd(el) {
-    el.focus();
-    if (
-      typeof window.getSelection != "undefined" &&
-      typeof document.createRange != "undefined"
-    ) {
-      var range = document.createRange();
-      range.selectNodeContents(el);
-      range.collapse(false);
-      var sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-    } else if (typeof document.body.createTextRange != "undefined") {
-      var textRange = document.body.createTextRange();
-      textRange.moveToElementText(el);
-      textRange.collapse(false);
-      textRange.select();
+    const triggerChar = this.current.collection.trigger;
+    if (element.isContentEditable) {
+      this.range.insertTextAtCursor(triggerChar);
+    } else {
+      this.range.insertAtCaret(element, triggerChar);
     }
+
+    this.showMenuFor(element, true);
   }
 
-  // for contenteditable
-  insertTextAtCursor(text) {
-    var sel, range, html;
-    sel = window.getSelection();
-    range = sel.getRangeAt(0);
-    range.deleteContents();
-    var textNode = document.createTextNode(text);
-    range.insertNode(textNode);
-    range.selectNodeContents(textNode);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-
-  // for regular inputs
-  insertAtCaret(textarea, text) {
-    var scrollPos = textarea.scrollTop;
-    var caretPos = textarea.selectionStart;
-
-    var front = textarea.value.substring(0, caretPos);
-    var back = textarea.value.substring(
-      textarea.selectionEnd,
-      textarea.value.length
-    );
-    textarea.value = front + text + back;
-    caretPos = caretPos + text.length;
-    textarea.selectionStart = caretPos;
-    textarea.selectionEnd = caretPos;
-    textarea.focus();
-    textarea.scrollTop = scrollPos;
-  }
-
+  /**
+   * 隐藏提及菜单。
+   * 此方法现在委托给 TributeMenu 实例。
+   * 隐藏后清理当前状态。
+   */
   hideMenu() {
-    if (this.menu) {
-      this.menu.style.cssText = "display: none;";
-      this.isActive = false;
-      this.menuSelected = 0;
-      this.current = {};
-    }
+    this.menu.hideMenu();
+    // 清理 Tribute 实例的状态
+    this.current = {};
+    this.currentMentionTextSnapshot = "";
   }
 
+  /**
+   * 根据索引选择菜单项。
+   * 此方法现在委托给 TributeMenu 实例。
+   * @param {number | string} index - 要选择的菜单项的索引。
+   * @param {Event} originalEvent - 触发选择的原始事件。
+   */
   selectItemAtIndex(index, originalEvent) {
-    index = parseInt(index);
-    if (typeof index !== "number" || isNaN(index)) return;
-    let item = this.current.filteredItems[index];
-    let content = this.current.collection.selectTemplate(item);
-    if (content !== null) this.replaceText(content, originalEvent, item);
+    this.menu.selectItemAtIndex(index, originalEvent);
   }
 
+  /**
+   * 替换文本内容。
+   * @param {string} content - 要插入的内容。
+   * @param {Event} originalEvent - 原始事件。
+   * @param {object} item - 选择的原始项目对象。
+   */
   replaceText(content, originalEvent, item) {
     this.range.replaceTriggerText(content, true, true, originalEvent, item);
   }
 
+  /**
+   * 内部方法，用于向集合追加值。
+   * @param {object} collection - 要修改的集合对象。
+   * @param {Array} newValues - 要追加的新值。
+   * @param {boolean} replace - 是否替换现有值。
+   * @private
+   */
   _append(collection, newValues, replace) {
     if (typeof collection.values === "function") {
       throw new Error("Unable to append to values, as it is a function.");
@@ -492,44 +269,58 @@ class Tribute {
     }
   }
 
+  /**
+   * 向指定索引的集合追加值。
+   * @param {number | string} collectionIndex - 集合的索引。
+   * @param {Array} newValues - 要追加的新值。
+   * @param {boolean} replace - 是否替换现有值。
+   */
   append(collectionIndex, newValues, replace) {
-    let index = parseInt(collectionIndex);
-    if (typeof index !== "number")
-      throw new Error("please provide an index for the collection to update.");
-
-    let collection = this.collection[index];
-
+    const index = parseInt(collectionIndex);
+    if (typeof index !== "number" || isNaN(index) || !this.collection[index]) {
+      throw new Error(
+        `Invalid collectionIndex: ${collectionIndex}`
+      );
+    }
+    const collection = this.collection[index];
     this._append(collection, newValues, replace);
   }
 
+  /**
+   * 向当前活动的集合追加值。
+   * @param {Array} newValues - 要追加的新值。
+   * @param {boolean} replace - 是否替换现有值。
+   */
   appendCurrent(newValues, replace) {
-    if (this.isActive) {
+    if (this.isActive && this.current.collection) {
       this._append(this.current.collection, newValues, replace);
     } else {
       throw new Error(
-        "No active state. Please use append instead and pass an index."
+        "No active state or collection. Please use append instead and pass an index."
       );
     }
   }
 
+  /**
+   * 从一个或多个 DOM 元素分离 Tribute。
+   * @param {Element|NodeList|Array|jQuery} el - 要分离的 DOM 元素。
+   */
   detach(el) {
     if (!el) {
       throw new Error("[Tribute] Must pass in a DOM node or NodeList.");
     }
 
-    // Check if it is a jQuery collection
     if (typeof jQuery !== "undefined" && el instanceof jQuery) {
       el = el.get();
     }
 
-    // Is el an Array/Array-like object?
     if (
       el.constructor === NodeList ||
       el.constructor === HTMLCollection ||
       el.constructor === Array
     ) {
-      let length = el.length;
-      for (var i = 0; i < length; ++i) {
+      const length = el.length;
+      for (let i = 0; i < length; ++i) {
         this._detach(el[i]);
       }
     } else {
@@ -537,19 +328,32 @@ class Tribute {
     }
   }
 
+  /**
+   * 从单个 DOM 元素分离 Tribute。
+   * @param {Element} el - 要分离的 DOM 元素。
+   * @private
+   */
   _detach(el) {
-    this.events.unbind(el);
+    this.events.unbind(el); // 使用 TributeEvents 解绑
+
     if (el.tributeMenu) {
-      this.menuEvents.unbind(el.tributeMenu);
+      this.menuEvents.unbind(el.tributeMenu); // 使用 TributeMenuEvents 解绑
+      if (this.menu && typeof this.menu.destroy === 'function') {
+        this.menu.destroy(); // 调用TributeMenu实例的销毁方法
+      }
+      delete el.tributeMenu;
     }
 
-    setTimeout(() => {
-      el.removeAttribute("data-tribute");
-      this.isActive = false;
-      if (el.tributeMenu) {
-        el.tributeMenu.remove();
-      }
-    });
+    el.removeAttribute("data-tribute");
+
+    // 如果这是最后一个分离的元素，并且没有其他活动的Tribute实例共享此菜单，
+    // 则可以考虑完全销毁菜单DOM。
+    // 但当前设计是每个Tribute实例一个TributeMenu实例，
+    // TributeMenu的destroy方法会处理其DOM。
+    // 如果isActive为true，且这是当前元素，则隐藏菜单
+    if (this.isActive && this.current.element === el) {
+        this.hideMenu();
+    }
   }
 }
 
