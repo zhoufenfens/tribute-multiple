@@ -38,6 +38,101 @@
       .float-right {
         float: right;
       }
+      
+      /* 多选功能样式 */
+      .multiple-select-container {
+        border: 1px solid #eee;
+        border-radius: 4px;
+        padding: 8px;
+        min-height: 50px;
+        background: white;
+        cursor: text;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      
+      .multiple-select-container:focus-within {
+        border-color: #2ba6cb;
+        box-shadow: 0 0 5px rgba(43, 166, 203, 0.3);
+      }
+      
+      .selected-user-tag {
+        display: inline-flex;
+        align-items: center;
+        background: #2ba6cb;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 16px;
+        font-size: 12px;
+        margin: 2px;
+        animation: fadeIn 0.2s ease-in;
+      }
+      
+      .selected-user-tag .remove-btn {
+        margin-left: 6px;
+        cursor: pointer;
+        font-weight: bold;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 10px;
+        transition: background 0.2s;
+      }
+      
+      .selected-user-tag .remove-btn:hover {
+        background: rgba(255, 255, 255, 0.5);
+      }
+      
+      .multiple-select-input {
+        border: none;
+        outline: none;
+        background: transparent;
+        flex: 1;
+        min-width: 120px;
+        padding: 4px;
+        font-size: 14px;
+      }
+      
+      .selected-users-display {
+        margin-top: 10px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 4px;
+        border: 1px solid #e9ecef;
+      }
+      
+      .selected-users-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 5px;
+      }
+      
+      .selected-user-item {
+        background: white;
+        padding: 6px 12px;
+        border-radius: 20px;
+        border: 1px solid #dee2e6;
+        font-size: 13px;
+        color: #495057;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: scale(0.8); }
+        to { opacity: 1; transform: scale(1); }
+      }
+      
+      .empty-state {
+        color: #6c757d;
+        font-style: italic;
+        font-size: 13px;
+      }
     </style>
   </head>
   <body>
@@ -50,8 +145,20 @@
     <div class="row">
       <div class="large-8 small-centered columns">
         <div class="callout large">
-          <h5>Tribute on <code>contenteditable</code> element:</h5>
+          <h5>Tribute 多选功能演示:</h5>
           <a id="activateInput">@mention</a>
+          <div id="multiple-select-container" class="multiple-select-container">
+            <input type="text" id="multiple-select-input" class="multiple-select-input" placeholder="输入 @ 来选择多个用户..." />
+          </div>
+          
+          <div class="selected-users-display">
+            <strong>已选择的用户:</strong>
+            <div id="selected-users-list" class="selected-users-list">
+              <div class="empty-state">暂无选择的用户</div>
+            </div>
+          </div>
+
+          <h5>Tribute on <code>contenteditable</code> element:</h5>
           <p
             id="test"
             contenteditable="true"
@@ -82,7 +189,6 @@
             Tribute with <code>autocompleteMode:true</code> on
             <code>contenteditable</code> element:
           </h5>
-          <!-- <a id="activateInput">@mention</a> -->
           <div id="test-autocomplete-container">
             <p
               id="test-autocomplete"
@@ -165,9 +271,170 @@
 
     <script src="tribute.js"></script>
     <script>
-      // example of alternative callback
+      // 多选功能实现
+      class MultipleSelectTribute {
+        constructor(options) {
+          this.selectedUsers = [];
+          this.container = document.getElementById(options.containerId);
+          this.input = document.getElementById(options.inputId);
+          this.displayContainer = document.getElementById(options.displayId);
+          this.users = options.users || [];
+          
+          this.initTribute();
+          this.bindEvents();
+        }
+        
+        initTribute() {
+          this.tribute = new Tribute({
+            values: this.users,
+            selectTemplate: (item) => {
+              if (typeof item === "undefined") return null;
+              // 添加用户到选中列表
+              this.addSelectedUser(item.original);
+              // 清空输入框
+              this.input.value = '';
+              return '';
+            },
+            menuItemTemplate: (item) => {
+              // 检查是否已选择
+              const isSelected = this.selectedUsers.some(user => user.email === item.original.email);
+              const checkmark = isSelected ? ' ✓' : '';
+              const className = isSelected ? 'style="opacity: 0.6;"' : '';
+              return `<span ${className}>${item.string}${checkmark}</span>`;
+            },
+            lookup: 'key',
+            fillAttr: 'value',
+            requireLeadingSpace: false
+          });
+          
+          this.tribute.attach(this.input);
+        }
+        
+        addSelectedUser(user) {
+          // 检查是否已经选择过
+          if (this.selectedUsers.some(selected => selected.email === user.email)) {
+            return;
+          }
+          
+          this.selectedUsers.push(user);
+          this.renderSelectedUsers();
+          this.updateDisplay();
+        }
+        
+        removeSelectedUser(userEmail) {
+          this.selectedUsers = this.selectedUsers.filter(user => user.email !== userEmail);
+          this.renderSelectedUsers();
+          this.updateDisplay();
+        }
+        
+        renderSelectedUsers() {
+          // 清空容器中现有的标签
+          const existingTags = this.container.querySelectorAll('.selected-user-tag');
+          existingTags.forEach(tag => tag.remove());
+          
+          // 添加新的标签
+          this.selectedUsers.forEach(user => {
+            const tag = document.createElement('div');
+            tag.className = 'selected-user-tag';
+            tag.innerHTML = `
+              ${user.value}
+              <span class="remove-btn" data-email="${user.email}">×</span>
+            `;
+            
+            // 在输入框前插入标签
+            this.container.insertBefore(tag, this.input);
+          });
+        }
+        
+        updateDisplay() {
+          if (this.selectedUsers.length === 0) {
+            this.displayContainer.innerHTML = '<div class="empty-state">暂无选择的用户</div>';
+          } else {
+            const userItems = this.selectedUsers.map(user => 
+              `<div class="selected-user-item">${user.value} (${user.email})</div>`
+            ).join('');
+            this.displayContainer.innerHTML = userItems;
+          }
+        }
+        
+        bindEvents() {
+          // 点击容器时聚焦输入框
+          this.container.addEventListener('click', (e) => {
+            if (e.target === this.container) {
+              this.input.focus();
+            }
+          });
+          
+          // 删除标签事件
+          this.container.addEventListener('click', (e) => {
+            if (e.target.classList.contains('remove-btn')) {
+              const email = e.target.getAttribute('data-email');
+              this.removeSelectedUser(email);
+            }
+          });
+          
+          // 键盘事件
+          this.input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && this.input.value === '' && this.selectedUsers.length > 0) {
+              // 删除最后一个选中的用户
+              const lastUser = this.selectedUsers[this.selectedUsers.length - 1];
+              this.removeSelectedUser(lastUser.email);
+            }
+          });
+        }
+        
+        getSelectedUsers() {
+          return this.selectedUsers;
+        }
+        
+        clearSelection() {
+          this.selectedUsers = [];
+          this.renderSelectedUsers();
+          this.updateDisplay();
+        }
+      }
+      
+      // 初始化多选功能
+      const multipleSelect = new MultipleSelectTribute({
+        containerId: 'multiple-select-container',
+        inputId: 'multiple-select-input',
+        displayId: 'selected-users-list',
+        users: [
+          {
+            key: "Jordan Humphreys",
+            value: "Jordan Humphreys",
+            email: "getstarted@zurb.com"
+          },
+          {
+            key: "Sir Walter Riley",
+            value: "Sir Walter Riley",
+            email: "getstarted+riley@zurb.com"
+          },
+          {
+            key: "Joachim",
+            value: "Joachim",
+            email: "getstarted+joachim@zurb.com"
+          },
+          {
+            key: "Alice Johnson",
+            value: "Alice Johnson",
+            email: "alice@example.com"
+          },
+          {
+            key: "Bob Smith",
+            value: "Bob Smith",
+            email: "bob@example.com"
+          },
+          {
+            key: "Carol Davis",
+            value: "Carol Davis",
+            email: "carol@example.com"
+          }
+        ]
+      });
+
+      // 原有的 tribute 实例
       var tribute = new Tribute({
-        // menuContainer: document.getElementById('content'),
         values: [
           {
             key: "Jordan Humphreys",
@@ -300,14 +567,19 @@
       if (activateLink) {
         activateLink.addEventListener("mousedown", function(e) {
           e.preventDefault();
-          var input = document.getElementById("test");
-
-          tribute.showMenuForCollection(input);
+          var input = document.getElementById("multiple-select-input");
+          
+          // 手动触发 @ 字符
+          input.value = '@';
+          input.focus();
+          
+          // 触发输入事件来显示菜单
+          var event = new Event('input', { bubbles: true });
+          input.dispatchEvent(event);
         });
       }
 
       // example of Tribute in autocomplete mode
-
       var tributeAttributes = {
         autocompleteMode: true,
         noMatchTemplate: "",
