@@ -28,6 +28,7 @@ class Tribute {
     this._isActive = false; // 内部状态，标记菜单是否激活
     this.hasTrailingSpace = false; // 标记提及文本后是否有尾随空格
     this.currentMentionTextSnapshot = ""; // 用于比较提及文本是否变化的快照
+    this.selectedItems = new Map(); // 用于多选模式下存储已勾选的项 {itemId: itemObject}
 
     // 初始化模块实例
     // 这些模块将接收此 Tribute 实例的引用，以便它们可以回调或访问其状态/方法
@@ -354,6 +355,127 @@ class Tribute {
     if (this.isActive && this.current.element === el) {
         this.hideMenu();
     }
+  }
+
+  /**
+   * (多选模式) 切换指定项目的勾选状态。
+   * @param {string | number} itemId - 项目的唯一标识符 (通常是 fillAttr 的值或索引)。
+   * @param {boolean}isSelected - 项目是否被勾选。
+   * @param {object} itemOriginal - 原始项目数据 (可选，如果需要存储整个对象)。
+   */
+  toggleItemSelected(itemId, isSelected, itemOriginal) {
+    if (!this.current.collection || !this.current.collection.multipleSelectMode) {
+      return;
+    }
+    // itemOriginal 通常在 TributeMenu 中渲染时可以从 matchItem.original 获取
+    // 这里假设如果提供了 itemOriginal，就存储它，否则可能只存储ID（取决于需求）
+    // 为了简单起见，并且能在确认时获取到完整信息，我们存储 itemOriginal (如果可用)
+    // 或者至少是能从 filteredItems 中重新找到它的信息。
+    // TributeMenu 中的 checkbox 事件处理器应传递 item.original。
+
+    const itemToStore = itemOriginal || this.current.filteredItems.find(fi => (fi.original[this.current.collection.fillAttr] || fi.index) == itemId)?.original;
+
+
+    if (isSelected) {
+      if (itemToStore) {
+        this.selectedItems.set(itemId.toString(), itemToStore);
+      }
+    } else {
+      this.selectedItems.delete(itemId.toString());
+    }
+    // console.log("Selected items:", this.selectedItems);
+  }
+
+  /**
+   * (多选模式) 清空所有已勾选的项目。
+   */
+  clearSelectedItems() {
+    if (this.current.collection && this.current.collection.multipleSelectMode) {
+      this.selectedItems.clear();
+      // 可能需要通知菜单更新勾选框状态，但这通常在重新渲染或特定UI更新逻辑中处理
+      // 例如，在点击取消按钮后，菜单会关闭并重置。
+      // 如果菜单保持打开，则需要一个机制来取消所有勾选框的选中状态。
+      if (this.menu && this.menu.menu) {
+        const checkboxes = this.menu.menu.querySelectorAll('.tribute-menu-item-checkbox');
+        checkboxes.forEach(cb => cb.checked = false);
+      }
+    }
+  }
+
+  /**
+   * (多选模式) 处理确认按钮点击事件。
+   * 将所有已勾选的项目填充到输入框。
+   */
+  confirmMultipleSelection() {
+    if (!this.current.collection || !this.current.collection.multipleSelectMode || this.selectedItems.size === 0) {
+      // 如果不是多选模式，或者没有选中任何项，则可能直接关闭菜单或不执行任何操作
+      this.hideMenu();
+      return;
+    }
+
+    const itemsToInsert = Array.from(this.selectedItems.values());
+    let combinedContent = "";
+
+    // 生成每个选中项的内容并拼接
+    // 考虑拼接方式：目前简单地用空格拼接，未来可以考虑配置分隔符
+    itemsToInsert.forEach((originalItem, index) => {
+      // 为了调用 selectTemplate，我们需要构造一个 TributeItem 结构
+      // selectTemplate 的参数是 TributeItem<T> | undefined
+      // 我们需要找到原始 item 在 filteredItems 中的对应项以获取 score 和 string (高亮后的)
+      // 但 selectTemplate 主要依赖 original 和 fillAttr，所以我们可以简化构造
+      // 或者，如果 selectTemplate 只用 original，我们可以直接传递。
+      // 为确保兼容性，我们尝试构造一个基本的 TributeItem 结构。
+      // 注意：这里的 `string` 和 `score` 可能不是最精确的，因为它们来自原始数据，
+      // 而不是搜索结果。但对于 `defaultSelectTemplate` 来说，它主要使用 `original` 和 `fillAttr`。
+      const tempTributeItem = {
+        original: originalItem,
+        score: 0, // 模拟一个分数
+        string: originalItem[this.current.collection.lookup] || '', // 模拟高亮字符串
+        index: -1 // 索引在这里可能不重要
+      };
+
+      let contentPart = this.current.collection.selectTemplate.call(this.config, tempTributeItem);
+
+      // 移除 selectTemplate 可能添加的默认触发字符和末尾的空格/&nbsp; (如果它是为单选设计的)
+      // 这是一个启发式处理，可能需要更健壮的方案或让用户提供专门的多选selectTemplate
+      if (contentPart.startsWith(this.current.collection.trigger)) {
+          contentPart = contentPart.substring(this.current.collection.trigger.length);
+      }
+      // 移除末尾的单个空格或 &nbsp;
+      contentPart = contentPart.replace(/(\s|\&nbsp\;)$/, "");
+
+
+      combinedContent += contentPart;
+      if (index < itemsToInsert.length - 1) {
+        combinedContent += ", "; // 用逗号和空格分隔多个选中项
+      }
+    });
+
+    if (combinedContent) {
+      // 触发字符 + 组合内容 + 后缀
+      const fullContentToInsert = this.current.collection.trigger + combinedContent;
+      this.replaceText(fullContentToInsert, new Event('submit'), itemsToInsert); // originalEvent 和 item 可能需要调整
+    }
+
+    const timeout = this.current.collection.delayCloseMenuTimeout || 0;
+    setTimeout(() => {
+      this.hideMenu();
+      this.clearSelectedItems();
+    }, timeout);
+  }
+
+  /**
+   * (多选模式) 处理取消按钮点击事件。
+   * 清空已勾选项并关闭菜单。
+   */
+  cancelMultipleSelection() {
+    const timeout = (this.current.collection && this.current.collection.delayCloseMenuTimeout)
+                    ? this.current.collection.delayCloseMenuTimeout
+                    : 0;
+    setTimeout(() => {
+      this.hideMenu();
+      this.clearSelectedItems();
+    }, timeout);
   }
 }
 

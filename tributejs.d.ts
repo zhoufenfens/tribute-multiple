@@ -85,6 +85,18 @@ export type TributeCollection<T extends {}> = {
 
   // specify if the current match should be selected when the spacebar is hit
   spaceSelectsMatch?: boolean;
+
+  // 确定按钮的文案，默认为'确定'
+  confirmBtnText?: string;
+
+  // 取消按钮的文案，默认为'取消'
+  cancelBtnText?: string;
+
+  // 多选模式，默认为false
+  multipleSelectMode?: boolean;
+
+  // 延迟关闭menu时间，主要用于防止同时触发外层的popover(如果有)的失焦隐藏，默认为0
+  delayCloseMenuTimeout?: number;
 };
 
 export type TributeOptions<T> =

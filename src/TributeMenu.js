@@ -42,7 +42,29 @@ class TributeMenu {
     }
 
     // 否则，默认附加到文档的 body
-    return doc.body.appendChild(wrapper);
+    const appendedWrapper = doc.body.appendChild(wrapper);
+
+    // 如果是多选模式，添加确认和取消按钮
+    if (this.tribute.current && this.tribute.current.collection && this.tribute.current.collection.multipleSelectMode) {
+        const buttonsContainer = doc.createElement("div");
+        buttonsContainer.className = "tribute-menu-buttons";
+
+        const confirmButton = doc.createElement("button");
+        confirmButton.className = "tribute-menu-button tribute-menu-confirm-button";
+        confirmButton.textContent = this.tribute.current.collection.confirmBtnText || "确定";
+        confirmButton.addEventListener("click", () => this.tribute.confirmMultipleSelection());
+
+        const cancelButton = doc.createElement("button");
+        cancelButton.className = "tribute-menu-button tribute-menu-cancel-button";
+        cancelButton.textContent = this.tribute.current.collection.cancelBtnText || "取消";
+        cancelButton.addEventListener("click", () => this.tribute.cancelMultipleSelection());
+
+        buttonsContainer.appendChild(confirmButton);
+        buttonsContainer.appendChild(cancelButton);
+        appendedWrapper.appendChild(buttonsContainer); // 将按钮容器添加到菜单外部包装器
+    }
+
+    return appendedWrapper;
   }
 
   /**
@@ -176,18 +198,40 @@ class TributeMenu {
         });
 
         // 如果当前项是预选中的项，添加选中状态的 CSS 类
-        if (this.tribute.menuSelected === index) {
+        if (this.tribute.menuSelected === index && !collection.multipleSelectMode) { // 多选模式下，高亮可能由勾选状态决定
           li.classList.add(collection.selectClass);
         }
 
         // 使用 menuItemTemplate 生成 <li> 的内容
-        // 确保 menuItemTemplate 函数的 `this` 上下文正确 (通常是 Tribute 实例)
+        // 确保 menuItemTemplate 函数的 `this` 上下文正确
+        // 对于 defaultMenuItemTemplate，它现在需要 TributeConfig 的上下文来访问 tributeInstance
         if (typeof collection.menuItemTemplate === 'function') {
-            li.innerHTML = collection.menuItemTemplate.call(this.tribute, item);
+            if (collection.menuItemTemplate === TributeConfig.defaultMenuItemTemplate) {
+                li.innerHTML = collection.menuItemTemplate.call(this.tribute.config, item);
+            } else {
+                // 用户自定义的模板，通常期望 this 指向 Tribute 实例
+                li.innerHTML = collection.menuItemTemplate.call(this.tribute, item);
+            }
         } else {
-            // 如果模板不是函数 (理论上配置阶段会确保它是函数或使用默认函数)
-            // 这里可以添加错误处理或默认渲染
-            li.innerHTML = item.string; // 假设 item.string 是预渲染好的内容
+            li.innerHTML = item.string;
+        }
+
+        // 如果是多选模式，处理勾选框的初始状态
+        if (collection.multipleSelectMode) {
+            const checkbox = li.querySelector('.tribute-menu-item-checkbox');
+            if (checkbox) {
+                const itemId = checkbox.getAttribute('data-id');
+                // 假设 this.tribute.selectedItems 是一个 Set 或 Array 存储已选项的 id
+                if (this.tribute.selectedItems && this.tribute.selectedItems.has(itemId.toString())) {
+                    checkbox.checked = true;
+                }
+                // 勾选框的点击事件监听器，用于更新 selectedItems
+                checkbox.addEventListener('click', (e) => {
+                    e.stopPropagation(); // 防止触发 li 的点击事件（如果li也有事件）
+                    // 当点击 checkbox 时，传递原始项目数据给 toggleItemSelected
+                    this.tribute.toggleItemSelected(itemId, checkbox.checked, item.original);
+                });
+            }
         }
         fragment.appendChild(li); // 将创建的 <li> 添加到文档片段
       });
@@ -270,11 +314,27 @@ class TributeMenu {
     const item = current.filteredItems[parsedIndex]; // 获取选中的项目数据
     if (!item) return; // 如果索引无效或项目不存在，则不执行操作
 
+    // 如果是多选模式，通过索引选择项目的行为可能会不同。
+    // 例如，可能只是高亮而不立即插入，或者切换勾选状态（如果键盘导航支持）。
+    // 当前的实现是，如果启用了多选，则 selectItemAtIndex 不会直接插入文本，
+    // 而是依赖确认按钮。此方法主要用于非多选模式下的直接选择。
+    if (current.collection.multipleSelectMode) {
+        // 在多选模式下，通过键盘或API调用此方法时，可以考虑切换对应项的勾选状态
+        // 并更新视觉高亮，但不立即替换文本或关闭菜单。
+        // 例如：
+        // const checkbox = this.menu.querySelector(`li[data-index="${parsedIndex}"] .tribute-menu-item-checkbox`);
+        // if (checkbox) {
+        //   checkbox.checked = !checkbox.checked;
+        //   this.tribute.toggleItemSelected(checkbox.dataset.id, checkbox.checked, item.original);
+        // }
+        // this.tribute.setActiveLi(parsedIndex); // 仅更新高亮
+        // 为保持简单，当前多选模式下，此方法不执行任何操作，选择完全由勾选框和确认按钮控制。
+        // 如果需要键盘支持多选，这里的逻辑需要扩展。
+        return;
+    }
+
+    // --- 以下为单选模式逻辑 ---
     // 使用当前集合的 selectTemplate 生成要插入的文本/HTML
-    // .call(this.tribute.config, item) 确保模板函数内的 `this` 指向 TributeConfig 实例，
-    // 模板可以通过 `this.tributeInstance` 访问主 Tribute 实例。
-    // 或者，如果希望模板内 `this` 直接是 Tribute 实例，可以用 .call(this.tribute, item)。
-    // 当前设计是模板的 `this` 指向 `TributeConfig`，通过 `this.tributeInstance` 访问主实例。
     const content = current.collection.selectTemplate.call(this.tribute.config, item);
 
     // 如果模板返回了有效内容，则替换文本并隐藏菜单

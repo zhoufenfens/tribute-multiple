@@ -207,8 +207,53 @@ Collection object shown with defaults:
   menuItemLimit: 25,
 
   // specify the minimum number of characters that must be typed before menu appears
-  menuShowMinLength: 0
+  menuShowMinLength: 0,
+
+  // specify if the current match should be selected when the spacebar is hit
+  // (this is actually already in the list above, but repeating here for structure before new options)
+  spaceSelectsMatch: false,
+
+  // --- New Options for Multiple Select Mode ---
+  // enable multiple select mode, default is false
+  multipleSelectMode: false,
+
+  // text for the confirm button in multiple select mode, default is '确定' (Confirm)
+  confirmBtnText: '确定',
+
+  // text for the cancel button in multiple select mode, default is '取消' (Cancel)
+  cancelBtnText: '取消',
+
+  // delay in milliseconds before closing the menu after confirm/cancel in multiple select mode, default is 0
+  delayCloseMenuTimeout: 0
 }
+```
+
+### Multiple Select Mode
+
+When `multipleSelectMode` is set to `true`, Tribute's behavior changes:
+- Each item in the menu will display a checkbox.
+- A "Confirm" and "Cancel" button will appear at the bottom of the menu.
+- Users can check multiple items.
+- Clicking "Confirm" will insert all selected items into the input, formatted according to `selectTemplate` and joined by ", ". The original trigger character will prefix the combined string.
+- Clicking "Cancel" will close the menu and clear any selections.
+- Direct selection of a single item by clicking or pressing Enter is disabled in this mode; selection is finalized via the Confirm button.
+
+Example:
+```javascript
+var tribute = new Tribute({
+  multipleSelectMode: true,
+  confirmBtnText: 'Add Selected', // Custom confirm button text
+  values: [
+    { key: "User A", value: "userA" },
+    { key: "User B", value: "userB" },
+    { key: "User C", value: "userC" }
+  ],
+  selectTemplate: function (item) {
+    // This template will be used for each selected item
+    // The trigger character is handled gitaround the combined result
+    return item.original.value;
+  }
+});
 ```
 
 ### Dynamic lookup column

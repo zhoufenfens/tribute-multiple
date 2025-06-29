@@ -59,6 +59,11 @@ class TributeConfig {
     searchOpts = {}, // 搜索选项
     menuItemLimit = null, // 菜单项数量限制
     menuShowMinLength = 0, // 菜单显示最小长度
+    // 新增多选模式相关配置
+    multipleSelectMode = false, // 多选模式开关，默认为 false
+    confirmBtnText = "确定", // 确认按钮文本，默认为 "确定"
+    cancelBtnText = "取消", // 取消按钮文本，默认为 "取消"
+    delayCloseMenuTimeout = 0, // 延迟关闭菜单的时间（毫秒），默认为 0
   }) {
     // 存储所有配置选项
     this.autocompleteMode = autocompleteMode;
@@ -68,6 +73,10 @@ class TributeConfig {
     this.replaceTextSuffix = replaceTextSuffix;
     this.positionMenu = positionMenu;
     this.spaceSelectsMatch = spaceSelectsMatch;
+    this.multipleSelectMode = multipleSelectMode;
+    this.confirmBtnText = confirmBtnText;
+    this.cancelBtnText = cancelBtnText;
+    this.delayCloseMenuTimeout = delayCloseMenuTimeout;
 
     // tributeInstance 将由 Tribute 主类在实例化 TributeConfig后设置。
     // 这对于默认模板函数能够访问 Tribute 实例的 `current` 和 `range` 属性至关重要。
@@ -100,6 +109,11 @@ class TributeConfig {
           searchOpts: searchOpts,
           menuItemLimit: menuItemLimit,
           menuShowMinLength: menuShowMinLength,
+          // 将多选相关配置也加入到每个 collection 项，以便单个 collection 可以覆盖全局配置
+          multipleSelectMode: multipleSelectMode,
+          confirmBtnText: confirmBtnText,
+          cancelBtnText: cancelBtnText,
+          delayCloseMenuTimeout: delayCloseMenuTimeout,
         },
       ];
     } else if (collection) {
@@ -131,6 +145,10 @@ class TributeConfig {
           searchOpts: item.searchOpts || searchOpts,
           menuItemLimit: item.menuItemLimit || menuItemLimit,
           menuShowMinLength: item.menuShowMinLength || menuShowMinLength,
+          multipleSelectMode: item.multipleSelectMode !== undefined ? item.multipleSelectMode : multipleSelectMode,
+          confirmBtnText: item.confirmBtnText || confirmBtnText,
+          cancelBtnText: item.cancelBtnText || cancelBtnText,
+          delayCloseMenuTimeout: item.delayCloseMenuTimeout !== undefined ? item.delayCloseMenuTimeout : delayCloseMenuTimeout,
         };
       });
     } else {
@@ -241,6 +259,33 @@ class TributeConfig {
    * @returns {string} - 用于显示在菜单项中的HTML字符串。
    */
   static defaultMenuItemTemplate(matchItem) {
+    // 默认的 menuItemTemplate 现在需要感知多选模式。
+    // 由于它是静态方法，它无法直接访问 this.tributeInstance 或 this.multipleSelectMode。
+    // 因此，调用此模板的地方 (TributeMenu.js) 需要检查多选模式，
+    // 并相应地修改传递给此模板的 `matchItem` 或者直接在此处渲染勾选框（如果能获取到配置）。
+
+    // 更好的做法是：TributeMenu 在构建列表项时，如果发现是多选模式，
+    // 它会自己创建 checkbox，然后调用 menuItemTemplate 仅获取项目文本部分。
+    // 或者，menuItemTemplate 的契约可以改变，允许它接收一个额外的参数来说明是否是多选。
+
+    // 假设的调整：让TributeMenu来处理checkbox的添加，此模板专注于内容。
+    // 如果要在此模板内处理，需要 this.tributeInstance。
+    // 为了保持静态方法的纯粹性，暂时不在这里直接添加checkbox的逻辑，
+    // 而是期望 TributeMenu.js 在调用此模板后，如果需要，再预置 checkbox。
+    // 或者，将此方法变为实例方法，并在 TributeConfig 构造时绑定 this.tributeInstance。
+
+    // 折中方案：如果 this.tributeInstance 可用（通过调用者绑定上下文），则使用它。
+    // 这要求 TributeMenu 在调用时使用 .call(this.tribute.config, item)
+    const tribute = this.tributeInstance; // this 指向 TributeConfig 实例
+
+    if (tribute && tribute.current && tribute.current.collection && tribute.current.collection.multipleSelectMode) {
+      // 注意: data-id 可以用于在事件处理器中识别项目。使用 fillAttr 来获取唯一标识。
+      // checked 状态和事件监听需要在 TributeMenu 中动态管理。
+      const itemId = matchItem.original[tribute.current.collection.fillAttr] || matchItem.index;
+      return `<input type="checkbox" class="tribute-menu-item-checkbox" data-id="${itemId}" aria-label="Select item ${matchItem.string}"> <span class="tribute-menu-item-content">${matchItem.string}</span>`;
+    }
+
+    // 非多选模式，或无法获取配置，则返回原始的匹配字符串
     return matchItem.string;
   }
 

@@ -290,10 +290,27 @@ class TributeEvents {
         if (tributeInstance.isActive && tributeInstance.current.filteredItems) {
           e.preventDefault();
           e.stopPropagation();
-          // 使用 setTimeout 确保在任何相关的浏览器默认行为（如换行）之后执行
+
+          // 如果是多选模式，回车键不应直接选择单个项目，而是可能用于其他操作（例如，触发表单提交），
+          // 或者在未来可以配置为切换当前高亮项的勾选状态。
+          // 目前，多选模式下的选择完全由勾选框和底部的确认/取消按钮控制。
+          // 因此，在多选模式下，回车键的默认选择行为应被阻止。
+          if (tributeInstance.current.collection && tributeInstance.current.collection.multipleSelectMode) {
+            // 可以考虑，如果焦点在菜单项上，回车切换勾选状态
+            // const focusedLi = tributeInstance.menu.menu.querySelector(`li.${tributeInstance.current.collection.selectClass}`);
+            // if (focusedLi) {
+            //   const checkbox = focusedLi.querySelector('.tribute-menu-item-checkbox');
+            //   if (checkbox) {
+            //     checkbox.checked = !checkbox.checked;
+            //     checkbox.dispatchEvent(new Event('click', {bubbles: true})); // 触发点击以更新状态
+            //   }
+            // }
+            return; // 在多选模式下，回车键不执行默认的单项选择
+          }
+
+          // 单选模式下的逻辑
           setTimeout(() => {
             tributeInstance.selectItemAtIndex(tributeInstance.menuSelected, e);
-            // tributeInstance.hideMenu(); // selectItemAtIndex 内部会调用 hideMenu
           }, 0);
         }
       },

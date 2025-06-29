@@ -110,11 +110,35 @@ class TributeMenuEvents {
       // 点击在菜单项上
       event.preventDefault();
       event.stopPropagation();
-      tributeInstance.selectItemAtIndex(li.getAttribute("data-index"), event);
-      // tributeInstance.hideMenu(); // selectItemAtIndex 内部会调用 hideMenu
+
+      if (tributeInstance.current.collection && tributeInstance.current.collection.multipleSelectMode) {
+        // 多选模式下，点击列表项应切换其勾选状态
+        const checkbox = li.querySelector('.tribute-menu-item-checkbox');
+        if (checkbox) {
+          checkbox.checked = !checkbox.checked;
+          // 手动触发checkbox的click事件来调用toggleItemSelected, 或者直接调用:
+          const itemId = checkbox.dataset.id;
+          // 找到原始 item 数据。这部分可能需要优化，比如在 li 上直接存储原始数据或其引用。
+          // 假设 Tribute.js 的 current.filteredItems[index].original 仍然是可靠的来源。
+          const itemIndex = parseInt(li.getAttribute("data-index"), 10);
+          const originalItem = tributeInstance.current.filteredItems[itemIndex]?.original;
+          if (itemId && originalItem) {
+            tributeInstance.toggleItemSelected(itemId, checkbox.checked, originalItem);
+          }
+        }
+        // 在多选模式下，点击列表项后不应关闭菜单
+      } else {
+        // 单选模式下，直接选择
+        tributeInstance.selectItemAtIndex(li.getAttribute("data-index"), event);
+      }
     } else if (menu.contains(target)) {
       // 点击在菜单内部，但不是可选择的 li (例如，NoMatchTemplate 内容)
-      // 可以选择阻止事件冒泡，或根据具体情况处理
+      // 或者点击的是多选模式下的按钮区域
+      const isButtonClicked = target.closest('.tribute-menu-buttons');
+      if (isButtonClicked) {
+        // 如果点击的是按钮，事件已由按钮自身处理，这里不需要额外操作，也不应关闭菜单。
+        return;
+      }
        event.preventDefault(); // 阻止可能的文本选择等行为
     } else {
       // 点击在菜单外部
