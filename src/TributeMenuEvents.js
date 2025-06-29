@@ -111,24 +111,27 @@ class TributeMenuEvents {
       event.preventDefault();
       event.stopPropagation();
 
-      if (tributeInstance.current.collection && tributeInstance.current.collection.multipleSelectMode) {
-        // 多选模式下，点击列表项应切换其勾选状态
+      const currentCollection = tributeInstance.current.collection;
+      const mentionText = tributeInstance.current.mentionText;
+      const isMultipleMode = currentCollection && currentCollection.multipleSelectMode;
+      // 条件UI状态：多选模式启用，并且是初始列表（无搜索文本）
+      const isInitialMultiSelectUIActive = isMultipleMode && (!mentionText || mentionText.length === 0);
+
+      if (isInitialMultiSelectUIActive) {
+        // 多选模式下的初始列表状态：点击列表项切换勾选状态
         const checkbox = li.querySelector('.tribute-menu-item-checkbox');
-        if (checkbox) {
+        if (checkbox && checkbox.style.display !== 'none') { // 确保勾选框可见
           checkbox.checked = !checkbox.checked;
-          // 手动触发checkbox的click事件来调用toggleItemSelected, 或者直接调用:
           const itemId = checkbox.dataset.id;
-          // 找到原始 item 数据。这部分可能需要优化，比如在 li 上直接存储原始数据或其引用。
-          // 假设 Tribute.js 的 current.filteredItems[index].original 仍然是可靠的来源。
           const itemIndex = parseInt(li.getAttribute("data-index"), 10);
           const originalItem = tributeInstance.current.filteredItems[itemIndex]?.original;
           if (itemId && originalItem) {
             tributeInstance.toggleItemSelected(itemId, checkbox.checked, originalItem);
           }
         }
-        // 在多选模式下，点击列表项后不应关闭菜单
+        // 在多选模式的初始列表点击后，不关闭菜单
       } else {
-        // 单选模式下，直接选择
+        // 单选模式，或者多选模式下的搜索过滤状态（此时行为类似单选）
         tributeInstance.selectItemAtIndex(li.getAttribute("data-index"), event);
       }
     } else if (menu.contains(target)) {

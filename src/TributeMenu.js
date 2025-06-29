@@ -104,6 +104,15 @@ class TributeMenu {
       // Tribute 主类会在适当的时候调用 menuEvents.bind(this.menu)。
     }
 
+    // 判断是否处于“初始列表状态”（无搜索文本）且为多选模式
+    const 조건부다중선택UI활성 = collection.multipleSelectMode && (!current.mentionText || current.mentionText.length === 0);
+
+    // 控制底部按钮的显示/隐藏
+    const buttonsContainer = this.menu.querySelector(".tribute-menu-buttons");
+    if (buttonsContainer) {
+      buttonsContainer.style.display = 조건부다중선택UI활성 ? "block" : "none";
+    }
+
     // 更新 Tribute 状态
     this.tribute.isActive = true;     // 标记菜单为活动状态
     this.tribute.menuSelected = 0;    // 重置选中项索引为第一个 (0)
@@ -121,17 +130,15 @@ class TributeMenu {
       }
 
       // 使用 tribute.search 模块过滤数据
-      // `values` 是从 collection.values (可能是函数或数组) 获取到的原始数据列表
-      // `current.mentionText` 是用户已输入的查询文本
       let items = this.tribute.search.filter(current.mentionText, values, {
-        pre: collection.searchOpts.pre || "<span>", // 高亮前缀
-        post: collection.searchOpts.post || "</span>", // 高亮后缀
-        skip: collection.searchOpts.skip, // 是否跳过某些项的搜索逻辑
-        extract: (el) => { // 从数据项中提取用于搜索的字符串
+        pre: collection.searchOpts.pre || "<span>",
+        post: collection.searchOpts.post || "</span>",
+        skip: collection.searchOpts.skip,
+        extract: (el) => {
           if (typeof collection.lookup === "string") {
-            return el[collection.lookup]; // 按属性名查找
+            return el[collection.lookup];
           } else if (typeof collection.lookup === "function") {
-            return collection.lookup(el, current.mentionText); // 使用自定义查找函数
+            return collection.lookup(el, current.mentionText);
           } else {
             throw new Error(
               "[Tribute]无效的 `lookup` 配置：必须是字符串或函数。"
@@ -140,107 +147,96 @@ class TributeMenu {
         },
       });
 
-      // 如果配置了菜单项数量限制，则截断结果
       if (collection.menuItemLimit) {
         items = items.slice(0, collection.menuItemLimit);
       }
 
-      // 存储过滤后的项目列表到当前状态
       this.tribute.current.filteredItems = items;
-      const ul = this.menu.querySelector("ul"); // 获取菜单中的 <ul> 元素
+      const ul = this.menu.querySelector("ul");
 
-      // 处理没有匹配项的情况
       if (!items.length) {
-        // 触发 "tribute-no-match" 自定义事件
         const noMatchEvent = new CustomEvent("tribute-no-match", { detail: this.menu });
         current.element.dispatchEvent(noMatchEvent);
 
-        const noMatchTemplate = current.collection.noMatchTemplate; // 获取无匹配模板
+        const noMatchTemplate = current.collection.noMatchTemplate;
         let noMatchContent = null;
 
-        // 根据模板类型（函数或字符串）获取内容
         if (typeof noMatchTemplate === "function") {
-          noMatchContent = noMatchTemplate.call(this.tribute); // 确保函数内 this 指向 Tribute 实例
+          noMatchContent = noMatchTemplate.call(this.tribute);
         } else if (typeof noMatchTemplate === "string") {
           noMatchContent = noMatchTemplate;
         }
 
-        // 如果没有有效的无匹配模板内容，则隐藏菜单；否则显示模板内容
         if (!noMatchContent) {
           this.hideMenu();
         } else {
-          ul.innerHTML = noMatchContent; // 将模板内容填充到 <ul>
-          this.tribute.range.positionMenuAtCaret(scrollTo); // 定位菜单
+          ul.innerHTML = noMatchContent;
+          this.tribute.range.positionMenuAtCaret(scrollTo);
         }
-        return; // 无匹配项，处理完毕
+        return;
       }
 
-      // 清空现有的菜单项
       ul.innerHTML = "";
-      const fragment = this.tribute.range.getDocument().createDocumentFragment(); // 使用文档片段提高性能
+      const fragment = this.tribute.range.getDocument().createDocumentFragment();
 
-      // 遍历过滤后的项目，为每个项目创建 <li> 元素
       items.forEach((item, index) => {
         const li = this.tribute.range.getDocument().createElement("li");
-        li.setAttribute("data-index", index); // 存储索引，用于后续选择
-        li.className = collection.itemClass;   // 应用自定义的菜单项 CSS 类
+        li.setAttribute("data-index", index);
+        li.className = collection.itemClass;
 
-        // 鼠标悬停事件，用于高亮菜单项
-        // 注意: 此处的 mousemove 事件处理现在应该由 Tribute 主类或 TributeEvents/TributeMenuEvents 处理，
-        // 以便集中管理事件和状态更新 (如 this.tribute.menuSelected 和高亮类)。
-        // 这里保留是为了说明原始逻辑，但在重构版本中，这种直接的 DOM 事件绑定和状态操作
-        // 应该通过 Tribute 实例的方法 (如 tribute.setActiveLi(index)) 来进行。
         li.addEventListener("mousemove", (e) => {
-          let [_liTarget, idxStr] = this._findLiTarget(e.target); // 找到目标 <li> 及其索引
-          if (idxStr && e.movementY !== 0) { // Y轴有移动才触发，避免不必要的更新
-             this.tribute.setActiveLi(parseInt(idxStr, 10)); // 更新 Tribute 中的选中项
+          let [_liTarget, idxStr] = this._findLiTarget(e.target);
+          if (idxStr && e.movementY !== 0) {
+             this.tribute.setActiveLi(parseInt(idxStr, 10));
           }
         });
 
-        // 如果当前项是预选中的项，添加选中状态的 CSS 类
-        if (this.tribute.menuSelected === index && !collection.multipleSelectMode) { // 多选模式下，高亮可能由勾选状态决定
+        if (this.tribute.menuSelected === index && !collection.multipleSelectMode) {
           li.classList.add(collection.selectClass);
         }
 
-        // 使用 menuItemTemplate 生成 <li> 的内容
-        // 确保 menuItemTemplate 函数的 `this` 上下文正确
-        // 对于 defaultMenuItemTemplate，它现在需要 TributeConfig 的上下文来访问 tributeInstance
         if (typeof collection.menuItemTemplate === 'function') {
             if (collection.menuItemTemplate === TributeConfig.defaultMenuItemTemplate) {
                 li.innerHTML = collection.menuItemTemplate.call(this.tribute.config, item);
             } else {
-                // 用户自定义的模板，通常期望 this 指向 Tribute 实例
                 li.innerHTML = collection.menuItemTemplate.call(this.tribute, item);
             }
         } else {
             li.innerHTML = item.string;
         }
 
-        // 如果是多选模式，处理勾选框的初始状态
-        if (collection.multipleSelectMode) {
-            const checkbox = li.querySelector('.tribute-menu-item-checkbox');
-            if (checkbox) {
+        // 根据 조건부다중선택UI활성 状态控制勾选框的显示和状态
+        const checkbox = li.querySelector('.tribute-menu-item-checkbox');
+        if (checkbox) {
+            checkbox.style.display = 조건부다중선택UI활성 ? "" : "none";
+            if (조건부다중선택UI활성) {
                 const itemId = checkbox.getAttribute('data-id');
-                // 假设 this.tribute.selectedItems 是一个 Set 或 Array 存储已选项的 id
                 if (this.tribute.selectedItems && this.tribute.selectedItems.has(itemId.toString())) {
                     checkbox.checked = true;
+                } else {
+                    checkbox.checked = false; // 确保未选中的项取消勾选
                 }
-                // 勾选框的点击事件监听器，用于更新 selectedItems
-                checkbox.addEventListener('click', (e) => {
-                    e.stopPropagation(); // 防止触发 li 的点击事件（如果li也有事件）
-                    // 当点击 checkbox 时，传递原始项目数据给 toggleItemSelected
-                    this.tribute.toggleItemSelected(itemId, checkbox.checked, item.original);
-                });
+                // 确保事件监听器只在需要时添加，或在 _createMenu 时就添加好然后这里只控制显隐和状态
+                // 当前的实现是在每次渲染时都尝试添加，如果checkbox已存在且有监听器，可能会重复添加。
+                // 更好的方式是在_createMenu中为模板创建的checkbox预绑定事件，或确保只绑定一次。
+                // 简单起见，暂时依赖 TributeMenu.js 中 checkbox.addEventListener 的幂等性或浏览器自身的处理。
+                // (在之前的步骤中，事件监听器是在 showMenuFor 中添加的，这里保持该逻辑)
+                if (!checkbox.hasAttribute('data-tribute-event-bound')) { // 防止重复绑定
+                    checkbox.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.tribute.toggleItemSelected(itemId, checkbox.checked, item.original);
+                    });
+                    checkbox.setAttribute('data-tribute-event-bound', 'true');
+                }
             }
         }
-        fragment.appendChild(li); // 将创建的 <li> 添加到文档片段
+        fragment.appendChild(li);
       });
-      ul.appendChild(fragment); // 将所有菜单项一次性添加到 <ul>
+      ul.appendChild(fragment);
 
-      this.tribute.range.positionMenuAtCaret(scrollTo); // 定位菜单
+      this.tribute.range.positionMenuAtCaret(scrollTo);
     };
 
-    // 根据 collection.values 的类型（函数或数组）获取数据
     if (typeof collection.values === "function") {
       // 如果 values 是函数 (异步获取数据)
       if (collection.loadingItemTemplate) {
@@ -333,7 +329,7 @@ class TributeMenu {
         return;
     }
 
-    // --- 以下为单选模式逻辑 ---
+    // --- 以下为单选模式逻辑, 或多选模式下的搜索过滤后的单选行为 ---
     // 使用当前集合的 selectTemplate 生成要插入的文本/HTML
     const content = current.collection.selectTemplate.call(this.tribute.config, item);
 

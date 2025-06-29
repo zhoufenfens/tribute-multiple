@@ -187,8 +187,6 @@ describe("Tribute Multiple Select Mode cases", function() {
         cancelBtnText: "取消选择",
         selectTemplate: function(item) { // 定义选中项如何插入到输入框
           if (typeof item === "undefined") return null;
-          // 多选模式下，selectTemplate可能需要调整以适应多个值的组合
-          // 但此处我们主要测试其被调用和组合的逻辑
           return item.original.value;
         },
         values: [
@@ -200,9 +198,8 @@ describe("Tribute Multiple Select Mode cases", function() {
 
       let tribute = attachTribute(collectionObject, input.id); // 附加Tribute到输入元素
 
-      fillIn(input, " @"); // 输入触发字符和空格，以显示菜单
-
-      // 验证菜单和按钮是否出现
+      // 场景1: 初始状态，输入触发符，显示多选UI
+      fillIn(input, " @");
       let menuContainer = document.querySelector(".tribute-container");
       expect(menuContainer).not.toBe(null);
       expect(menuContainer.style.display).not.toBe("none");
@@ -227,38 +224,59 @@ describe("Tribute Multiple Select Mode cases", function() {
       expect(checkboxes[2].checked).toBe(true);
       expect(tribute.selectedItems.size).toBe(2); // 验证内部状态
 
-      // 模拟点击确认按钮
-      simulateMouseClick(confirmButton);
+      // 场景2: 用户开始输入搜索词，多选UI应隐藏
+      fillIn(input, " @Jor");
+      menuContainer = document.querySelector(".tribute-container"); // 重新获取menuContainer，因为它可能被重新渲染
+      confirmButton = menuContainer.querySelector(".tribute-menu-confirm-button");
+      cancelButton = menuContainer.querySelector(".tribute-menu-cancel-button");
+      checkboxes = menuContainer.querySelectorAll(".tribute-menu-item-checkbox");
 
-      // 验证输入框内容是否正确填充（基于 selectTemplate 和默认的逗号+空格分隔）
-      // 注意：Tribute.js 中 confirmMultipleSelection 的拼接逻辑是 trigger + item1, item2 ...
-      // 且 selectTemplate 返回的是 item.original.value
-      const expectedBase = "@Jordan, Phil";
-      const expectedSuffix = " "; // replaceTextSuffix 默认为空格 (或 &nbsp; for CE)
+      expect(confirmButton.style.display).toBe("none", "Confirm button should be hidden during search");
+      expect(cancelButton.style.display).toBe("none", "Cancel button should be hidden during search");
+      checkboxes.forEach(cb => expect(cb.style.display).toBe("none", "Checkboxes should be hidden during search"));
 
+      // 此时点击列表项应执行单选操作 (这里我们选择第一个匹配项 Jordan)
+      let popupList = menuContainer.querySelectorAll("ul > li");
+      expect(popupList.length).toBe(1); // 应该只剩 Jordan
+      simulateMouseClick(popupList[0]);
+
+      // 验证单选结果 (不包含触发符，因为 selectTemplate 返回的是 value)
+      const expectedSingleBase = "@Jordan";
       if (elementType === "text") {
-        // 对于文本输入框，replaceText 默认在末尾添加一个空格
-        expect(input.value.trim()).toBe(expectedBase.trim());
-      } else if (elementType === "contenteditable") {
-        // 对于 contentEditable, replaceText 默认添加 &nbsp;
-        // innerText 会将 &nbsp; 转换为空格，但HTML结构是不同的
-        // 我们需要更精确地检查，或者接受 trim 后的结果
-        // 实际插入的是 "@Jordan, Phil&nbsp;"
-        expect(input.innerText.replace(/\s+/g, ' ').trim()).toBe(expectedBase.replace(/\s+/g, ' ').trim());
-        // 更精确的检查 (可选):
-        // expect(input.innerHTML).toContain('@<span class="tribute-mention">Jordan</span>,&nbsp;<span class="tribute-mention">Phil</span>&nbsp;');
+        expect(input.value.trim()).toBe(expectedSingleBase.trim());
+      } else {
+        expect(input.innerText.replace(/\s+/g, ' ').trim()).toBe(expectedSingleBase.replace(/\s+/g, ' ').trim());
       }
+      expect(tribute.selectedItems.size).toBe(0); // 单选后，多选列表应清空或不受影响 (当前实现是清空)
 
-      // 验证菜单是否已关闭
-      // 由于有 delayCloseMenuTimeout (默认为0)，但事件处理是异步的，直接检查可能不准确
-      // 如果需要精确检查，可以spy on tribute.hideMenu() 或在setTimeout后检查
-      // 此处假设在点击确认后菜单会关闭
-      // expect(menuContainer.style.display).toBe("none"); // 可能需要调整
+      // 场景3: 清空搜索词，回到初始状态，多选UI应恢复，勾选状态应保留 (如果设计如此)
+      // 当前设计是 hideMenu 后 selectedItems 会清空，所以这里重新触发并勾选
+      fillIn(input, " @");
+      menuContainer = document.querySelector(".tribute-container");
+      confirmButton = menuContainer.querySelector(".tribute-menu-confirm-button");
+      cancelButton = menuContainer.querySelector(".tribute-menu-cancel-button");
+      checkboxes = menuContainer.querySelectorAll(".tribute-menu-item-checkbox");
 
-      // 验证 selectedItems 是否已清空
+      expect(confirmButton.style.display).not.toBe("none", "Confirm button should reappear");
+      expect(cancelButton.style.display).not.toBe("none", "Cancel button should reappear");
+      checkboxes.forEach(cb => expect(cb.style.display).not.toBe("none", "Checkboxes should reappear"));
+
+      // 重新勾选
+      simulateMouseClick(checkboxes[0]); // Jordan
+      simulateMouseClick(checkboxes[2]); // Phil
+      expect(tribute.selectedItems.size).toBe(2);
+
+      // 点击确认按钮
+      simulateMouseClick(confirmButton);
+      const expectedMultiBase = "@Jordan, Phil";
+      if (elementType === "text") {
+        expect(input.value.trim()).toBe(expectedMultiBase.trim());
+      } else {
+        expect(input.innerText.replace(/\s+/g, ' ').trim()).toBe(expectedMultiBase.replace(/\s+/g, ' ').trim());
+      }
       expect(tribute.selectedItems.size).toBe(0);
 
-      detachTribute(tribute, input.id); // 清理
+      detachTribute(tribute, input.id);
     });
 
     it(`should cancel selection and clear checkboxes for : ${elementType}`, () => {
@@ -269,7 +287,7 @@ describe("Tribute Multiple Select Mode cases", function() {
         values: [{ key: "Test User", value: "TestUser" }],
       };
       let tribute = attachTribute(collectionObject, input.id);
-      fillIn(input, " @");
+      fillIn(input, " @"); // 确保处于初始多选UI状态
 
       let menuContainer = document.querySelector(".tribute-container");
       let checkboxes = menuContainer.querySelectorAll(".tribute-menu-item-checkbox");

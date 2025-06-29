@@ -295,20 +295,19 @@ class TributeEvents {
           // 或者在未来可以配置为切换当前高亮项的勾选状态。
           // 目前，多选模式下的选择完全由勾选框和底部的确认/取消按钮控制。
           // 因此，在多选模式下，回车键的默认选择行为应被阻止。
-          if (tributeInstance.current.collection && tributeInstance.current.collection.multipleSelectMode) {
-            // 可以考虑，如果焦点在菜单项上，回车切换勾选状态
-            // const focusedLi = tributeInstance.menu.menu.querySelector(`li.${tributeInstance.current.collection.selectClass}`);
-            // if (focusedLi) {
-            //   const checkbox = focusedLi.querySelector('.tribute-menu-item-checkbox');
-            //   if (checkbox) {
-            //     checkbox.checked = !checkbox.checked;
-            //     checkbox.dispatchEvent(new Event('click', {bubbles: true})); // 触发点击以更新状态
-            //   }
-            // }
-            return; // 在多选模式下，回车键不执行默认的单项选择
-          }
+          const currentCollection = tributeInstance.current.collection;
+          const mentionText = tributeInstance.current.mentionText;
+          const isMultipleMode = currentCollection && currentCollection.multipleSelectMode;
+          // 条件UI状态：多选模式启用，并且是初始列表（无搜索文本）
+          const isInitialMultiSelectUIActive = isMultipleMode && (!mentionText || mentionText.length === 0);
 
-          // 单选模式下的逻辑
+          if (isInitialMultiSelectUIActive) {
+            // 在多选模式的初始列表状态下，回车键不执行任何操作
+            // （未来可以配置为切换高亮项的勾选状态，或触发确认）
+            return;
+          }
+          // 如果是多选模式但处于搜索过滤状态，或者是非多选模式，则执行单选逻辑
+          // （此时 isInitialMultiSelectUIActive 为 false）
           setTimeout(() => {
             tributeInstance.selectItemAtIndex(tributeInstance.menuSelected, e);
           }, 0);

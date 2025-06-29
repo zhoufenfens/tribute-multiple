@@ -231,12 +231,17 @@ Collection object shown with defaults:
 ### Multiple Select Mode
 
 When `multipleSelectMode` is set to `true`, Tribute's behavior changes:
-- Each item in the menu will display a checkbox.
-- A "Confirm" and "Cancel" button will appear at the bottom of the menu.
-- Users can check multiple items.
+- Each item in the menu will display a checkbox *only when the menu is first triggered and no search query has been typed*.
+- A "Confirm" and "Cancel" button will appear at the bottom of the menu, *also only when the menu is in its initial state (no search query)*.
+- Users can check multiple items when these UI elements are visible.
 - Clicking "Confirm" will insert all selected items into the input, formatted according to `selectTemplate` and joined by ", ". The original trigger character will prefix the combined string.
 - Clicking "Cancel" will close the menu and clear any selections.
-- Direct selection of a single item by clicking or pressing Enter is disabled in this mode; selection is finalized via the Confirm button.
+- When a search query is typed after the trigger character:
+    - Checkboxes and the Confirm/Cancel buttons are hidden.
+    - The menu behaves like a standard single-select mention:
+        - Clicking an item directly selects and inserts it.
+        - Pressing Enter on a highlighted item selects and inserts it.
+- If the search query is cleared (so only the trigger character remains), the checkboxes and Confirm/Cancel buttons will reappear, restoring any previously checked items.
 
 Example:
 ```javascript
