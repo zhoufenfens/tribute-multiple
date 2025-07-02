@@ -44,6 +44,12 @@
       .tribute-container.multiple-select-mode .m-check {
         display: inline-block;
       }
+      .tribute-container > ul > li[data-tribute-selected="1"] {
+        background-color: #ddd; /* Highlight for clicked multi-select items */
+      }
+      .tribute-container > ul > li[data-tribute-selected="1"].highlight {
+        background-color: #cce5ff; /* Distinguish if also keyboard-highlighted */
+      }
     </style>
   </head>
   <body>
@@ -61,7 +67,14 @@
           <p
             id="test"
             class="tribute-demo-input"
-            placeholder="Enter some text here"
+            placeholder="Enter some text here (Multi-select with checkboxes)"
+          ></p>
+
+          <h5>Tribute with <code>multipleSelectMode: true</code> and NO checkboxes in template:</h5>
+          <p
+            id="testMultiNoCheckbox"
+            class="tribute-demo-input"
+            placeholder="Enter some text here (Multi-select, click items)"
           ></p>
 
           <h5>
@@ -209,11 +222,41 @@
         menuItemTemplate: function(item) {
           return `<label><input type="checkbox" class="m-check" /> ${item.string}</label>`;
         },
-        requireLeadingSpace: false
+        requireLeadingSpace: false,
+        multipleSelectMode: true // <--- 显式启用多选模式
       });
       tribute.attach(document.getElementById("test"));
       tribute.attach(document.getElementById("testInput"));
       tribute.attach(document.getElementById("testarea"));
+
+      // New instance for testMultiNoCheckbox
+      var tributeMultiNoCheckbox = new Tribute({
+        values: [ // Using the same values for simplicity
+          { key: "Jordan Humphreys", value: "Jordan Humphreys", email: "getstarted@zurb.com" },
+          { key: "Sir Walter Riley", value: "Sir Walter Riley", email: "getstarted+riley@zurb.com" },
+          { key: "Joachim", value: "Joachim", email: "getstarted+joachim@zurb.com" }
+        ],
+        selectTemplate: function(item) { // Using a similar selectTemplate
+          if (typeof item === "undefined") return null;
+          if (this.range.isContentEditable(this.current.element)) {
+            return (
+              '<span contenteditable="false"><a href="http://zurb.com" target="_blank" title="' +
+              item.original.email +
+              '">' +
+              '@' + item.original.value +
+              "</a></span>"
+            );
+          }
+          return "@" + item.original.value;
+        },
+        // menuItemTemplate WITHOUT checkbox:
+        menuItemTemplate: function(item) {
+          return item.string; // Default or simple template
+        },
+        requireLeadingSpace: false,
+        multipleSelectMode: true // Explicitly enable multi-select mode
+      });
+      tributeMultiNoCheckbox.attach(document.getElementById("testMultiNoCheckbox"));
 
       var tributeMultipleTriggers = new Tribute({
         collection: [

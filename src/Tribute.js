@@ -45,7 +45,9 @@ class Tribute {
     this.hasTrailingSpace = false;
     this.spaceSelectsMatch = spaceSelectsMatch;
     
-    this.multipleSelectMode = multipleSelectMode;
+    // Store the initial user-defined multipleSelectMode
+    this._userMultipleSelectMode = multipleSelectMode;
+    this.multipleSelectMode = multipleSelectMode; // This might be dynamically changed by keyup
 
     if (this.autocompleteMode) {
       trigger = "";
@@ -317,15 +319,21 @@ class Tribute {
       this.menu = this.createMenu(this.current.collection.containerClass);
       element.tributeMenu = this.menu;
       this.menuEvents.bind(this.menu);
-    } else {
-      // 根据是否多选模式，添加或者移除多选模式的class，控制下面按钮的显示
-      if (this.multipleSelectMode) {
-        this.menu.classList.add('multiple-select-mode');
-      } else {
-        this.menu.classList.remove('multiple-select-mode');
-      }
     }
     
+    // 确保菜单的 class 和按钮的显示基于用户初始设定的 _userMultipleSelectMode
+    // createMenu 方法已经基于 this.multipleSelectMode (初始化时即 _userMultipleSelectMode) 创建了按钮和基础 class
+    // 此处主要是确保在菜单复用时，class 的正确性是基于 _userMultipleSelectMode
+    if (this.menu) { // 确保 menu 存在
+        if (this._userMultipleSelectMode) {
+            this.menu.classList.add('multiple-select-mode');
+            // 按钮的创建和添加在 createMenu 中已基于初始化时的 multipleSelectMode (即 _userMultipleSelectMode) 完成
+            // 如果按钮容器意外丢失，需要重新添加，但这应是更深层次的问题
+            // 一般来说，createMenu 保证了按钮的存在（如果 _userMultipleSelectMode 为 true）
+        } else {
+            this.menu.classList.remove('multiple-select-mode');
+        }
+    }
 
     this.isActive = true;
     this.menuSelected = 0;
@@ -520,9 +528,9 @@ class Tribute {
       index = parseInt(index);
       let item = this.current.filteredItems[index];
       let content = this.current.collection.selectTemplate(item);
-      if (content !== null) totalContent += content;
+      if (content !== null) totalContent += content + ' '; // 在每个标签后添加空格
     });
-    if (totalContent !== '') this.replaceText(totalContent, originalEvent);
+    if (totalContent !== '') this.replaceText(totalContent.trimRight(), originalEvent); // 移除末尾多余的空格
   }
 
   replaceText(content, originalEvent, item) {

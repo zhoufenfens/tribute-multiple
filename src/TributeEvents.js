@@ -126,13 +126,35 @@ class TributeEvents {
         }
       }
       
-      if (tribute.multipleSelectMode) {
-        // 多选不关闭菜单
-        let checked = li.getAttribute('data-tribute-selected') === '1';
-        let index = li.getAttribute("data-index");
-        li.setAttribute('data-tribute-selected', checked ? '0' : '1');
+      // 使用用户初始设定的 _userMultipleSelectMode 判断多选模式
+      if (tribute._userMultipleSelectMode) {
+        // 多选模式下，切换选中状态
+        // 如果 menuItemTemplate 中有 checkbox，优先使用 checkbox 的状态
+        const checkbox = li.querySelector('input[type="checkbox"]');
+        if (checkbox) {
+          // 如果有 checkbox，点击 label 或 li 时，切换 checkbox 状态
+          // 注意：如果直接点击 checkbox，其状态已经改变，这里不需要反转
+          // 为简化，我们假设点击 li 或 label 应该切换 checkbox
+          // 如果是直接点击 checkbox，event.target 可能是 checkbox 本身
+          if (event.target !== checkbox) {
+            checkbox.checked = !checkbox.checked;
+          }
+          li.setAttribute('data-tribute-selected', checkbox.checked ? '1' : '0');
+        } else {
+          // 如果没有 checkbox，则基于 data-tribute-selected 属性切换
+          let checked = li.getAttribute('data-tribute-selected') === '1';
+          li.setAttribute('data-tribute-selected', checked ? '0' : '1');
+        }
+
+        // 在多选模式下，通常不立即隐藏菜单，除非是特定操作
+        // 这里的点击只是选择/取消选择，菜单保持打开
+
+        // 更新视觉选中效果（如果需要的话，比如给 li 添加/移除特定 class）
+        // 例如: li.classList.toggle(tribute.current.collection.selectClass, li.getAttribute('data-tribute-selected') === '1');
+        // 但通常 selectClass 用于键盘导航的高亮，多选的视觉状态可能由 checkbox 或其他 data-* 属性配合 CSS 完成
+
       } else {
-        // 单选沿用老逻辑
+        // 单选模式
         tribute.selectItemAtIndex(li.getAttribute("data-index"), event);
         tribute.hideMenu();
       }
@@ -177,12 +199,25 @@ class TributeEvents {
       }
     }
     
-    // 只输入trigger字符时，切换到multipleSelectMode，否则关闭multipleSelectMode
-    if (instance.tribute.current.mentionText.length === 0) {
-      instance.tribute.multipleSelectMode = true;
-    } else {
-      instance.tribute.multipleSelectMode = false;
+    // 只输入trigger字符时，更新菜单的显示（如果需要，例如添加/移除多选相关的class）
+    // 但 multipleSelectMode 本身应由 _userMultipleSelectMode 控制
+    if (instance.tribute.menu) { // 确保菜单存在
+      if (instance.tribute._userMultipleSelectMode && instance.tribute.current.mentionText.length === 0) {
+        // 如果用户配置了多选，并且是刚输入trigger的场景，确保菜单有多选样式和按钮
+        instance.tribute.menu.classList.add('multiple-select-mode');
+        // 确保按钮在需要时显示（createMenu中已处理，这里是应对showMenuFor中可能的动态调整）
+         if (!instance.tribute.menu.querySelector('.tribute-btn-wrapper') && instance.tribute.range.getDocument().body.contains(instance.tribute.menu)) {
+            // 这个逻辑比较复杂，createMenu时按钮已创建，这里主要是确保class正确
+            // 如果按钮的显示/隐藏完全依赖于 multiple-select-mode class，则下方showMenuFor中的处理可能已足够
+        }
+      } else if (instance.tribute.menu.classList.contains('multiple-select-mode') && !instance.tribute._userMultipleSelectMode) {
+        // 如果用户未配置多选，但菜单仍有多选样式（不太可能发生，除非直接操作了实例的multipleSelectMode）
+        // instance.tribute.menu.classList.remove('multiple-select-mode');
+      }
     }
+    // 移除动态修改 tribute.multipleSelectMode 的逻辑
+    // instance.tribute.multipleSelectMode = instance.tribute._userMultipleSelectMode;
+
 
     if (
       instance.tribute.current.mentionText.length <
