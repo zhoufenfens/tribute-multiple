@@ -136,23 +136,31 @@ class TributeEvents {
           // 注意：如果直接点击 checkbox，其状态已经改变，这里不需要反转
           // 为简化，我们假设点击 li 或 label 应该切换 checkbox
           // 如果是直接点击 checkbox，event.target 可能是 checkbox 本身
-          if (event.target !== checkbox) {
+          // 浏览器会处理 label 点击时 checkbox 状态的切换。
+          // 我们的 preventDefault() 可能会阻止 label 的默认行为，
+          // 但也可能不会完全阻止所有浏览器的状态同步。
+          // 最稳妥的是，如果 event.target 不是 checkbox，我们才尝试同步状态，
+          // 但要避免双重反转。
+
+          if (event.target === checkbox) {
+            // Clicked directly on the checkbox.
+            // Its 'checked' state is already updated by the browser prior to this event handler
+            // (or rather, our preventDefault might not even stop this for a checkbox itself).
+            // So, we just read its current state.
+            li.setAttribute('data-tribute-selected', checkbox.checked ? '1' : '0');
+          } else {
+            // Clicked on the li or label (anything but the checkbox itself).
+            // Since preventDefault() is called, the label won't toggle the checkbox automatically.
+            // So, we must do it manually.
             checkbox.checked = !checkbox.checked;
+            li.setAttribute('data-tribute-selected', checkbox.checked ? '1' : '0');
           }
-          li.setAttribute('data-tribute-selected', checkbox.checked ? '1' : '0');
         } else {
-          // 如果没有 checkbox，则基于 data-tribute-selected 属性切换
-          let checked = li.getAttribute('data-tribute-selected') === '1';
-          li.setAttribute('data-tribute-selected', checked ? '0' : '1');
+          // No checkbox in template
+          let currentSelectedState = li.getAttribute('data-tribute-selected') === '1';
+          li.setAttribute('data-tribute-selected', !currentSelectedState ? '1' : '0');
         }
-
-        // 在多选模式下，通常不立即隐藏菜单，除非是特定操作
-        // 这里的点击只是选择/取消选择，菜单保持打开
-
-        // 更新视觉选中效果（如果需要的话，比如给 li 添加/移除特定 class）
-        // 例如: li.classList.toggle(tribute.current.collection.selectClass, li.getAttribute('data-tribute-selected') === '1');
-        // 但通常 selectClass 用于键盘导航的高亮，多选的视觉状态可能由 checkbox 或其他 data-* 属性配合 CSS 完成
-
+        // 多选模式下菜单保持打开
       } else {
         // 单选模式
         tribute.selectItemAtIndex(li.getAttribute("data-index"), event);
