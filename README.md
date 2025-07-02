@@ -19,13 +19,13 @@ There are a few ways to install Tribute; [Bower](http://bower.io/), as an [NPM M
 
 ### NPM Module
 
-You can install Tribute by running:
+This project now uses pnpm as the preferred package manager. You can install Tribute by running:
 
 ```shell
-npm install tributejs
+pnpm add tributejs
 ```
 
-Or by adding Tribute to your `package.json` file.
+Or by adding Tribute to your `package.json` file and running `pnpm install`.
 
 Import into your ES6 code.
 
@@ -53,7 +53,7 @@ And in `app/assets/stylesheets/application.css`:
 
 ### Webpack
 
-To add Tribute to your webpack build process, start by adding it to your package.json and running `npm install`.
+To add Tribute to your webpack build process, start by adding it to your package.json and running `pnpm install`.
 
 After installing, you need to update your Babel module loader to not exclude Tribute from being compiled by Webpack:
 
